@@ -12,7 +12,7 @@ export default function App() {
   const [technicians, setTechnicians] = React.useState([]);
   const [selectedCustomer, setSelectedCustomer] = React.useState(null);
   const [activeTech, setActiveTech] = React.useState(null);
-  const [role, setRole] = React.useState('technician');
+  const [role, setRole] = React.useState('coordinator');
 
   React.useEffect(() => {
     fetch('/api/customers').then(r => r.json()).then(setCustomers);
@@ -25,115 +25,118 @@ export default function App() {
   };
 
   return (
-    <div style={{ display: 'flex', height: '100vh', fontFamily: 'system-ui' }}>
+    <div className="flex h-screen bg-gray-50 font-sans">
       <Toaster position="top-center" />
 
-      {/* Sidebar - Customers */}
-      <div style={{ 
-        width: 280, 
-        borderRight: '1px solid #e5e7eb', 
-        padding: 20, 
-        background: '#f9fafb',
-        overflowY: 'auto'
-      }}>
-        <h2 style={{ marginTop: 0, marginBottom: 16 }}>Kunder</h2>
-        
-        {customers.length === 0 && <p style={{ color: '#888' }}>Ingen kunder</p>}
-        
-        {customers.map(customer => (
-          <div
-            key={customer.id}
-            onClick={() => setSelectedCustomer(customer)}
-            style={{
-              padding: '12px 16px',
-              marginBottom: 8,
-              borderRadius: 10,
-              cursor: 'pointer',
-              background: selectedCustomer?.id === customer.id ? '#dbeafe' : 'white',
-              border: selectedCustomer?.id === customer.id ? '1px solid #3b82f6' : '1px solid #e5e7eb',
-              transition: 'all 0.1s ease'
-            }}
-          >
-            <div style={{ fontWeight: 600 }}>{customer.name}</div>
-            <div style={{ fontSize: 13, color: '#666', marginTop: 2 }}>{customer.address}</div>
-          </div>
-        ))}
+      {/* Sidebar */}
+      <div className="w-72 bg-white border-r flex flex-col">
+        <div className="p-6 border-b">
+          <h1 className="text-2xl font-bold text-gray-900">Nortronik</h1>
+          <p className="text-sm text-gray-500">Planlegging & Oppdrag</p>
+        </div>
 
-        <div style={{ marginTop: 24 }}>
+        <div className="p-4">
+          <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-3">Kunder</div>
+          
+          {customers.length === 0 && (
+            <div className="px-3 py-2 text-sm text-gray-400">Ingen kunder</div>
+          )}
+
+          {customers.map((customer) => (
+            <div
+              key={customer.id}
+              onClick={() => setSelectedCustomer(customer)}
+              className={`px-3 py-3 rounded-xl cursor-pointer mb-1 transition-all ${
+                selectedCustomer?.id === customer.id 
+                  ? 'bg-blue-50 text-blue-700 font-medium' 
+                  : 'hover:bg-gray-100 text-gray-700'
+              }`}
+            >
+              <div>{customer.name}</div>
+              <div className="text-xs text-gray-500 truncate">{customer.address}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-auto p-4 border-t">
           <OrderForm customers={customers} onCreated={refreshOrders} />
         </div>
       </div>
 
       {/* Main Content */}
-      <div style={{ flex: 1, padding: 24, overflowY: 'auto' }}>
-        {!selectedCustomer ? (
-          <div style={{ textAlign: 'center', paddingTop: 80, color: '#666' }}>
-            <h2>Velg en kunde fra listen</h2>
-            <p>eller opprett en ny ordre</p>
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Top bar */}
+        <div className="h-14 border-b bg-white flex items-center justify-between px-6">
+          <div className="flex items-center gap-4">
+            <div className="text-lg font-semibold text-gray-800">
+              {selectedCustomer ? selectedCustomer.name : 'Oversikt'}
+            </div>
           </div>
-        ) : (
-          <CustomerDetail
-            customer={selectedCustomer}
-            orders={orders}
-            onBack={() => setSelectedCustomer(null)}
-            onOrderAction={() => {}}
-          />
-        )}
-      </div>
 
-      {/* Right side - Technician + Calendar */}
-      <div style={{ width: 320, borderLeft: '1px solid #e5e7eb', padding: 20, background: '#f9fafb', overflowY: 'auto' }}>
-        <div style={{ marginBottom: 20 }}>
-          <label style={{ fontSize: 14, fontWeight: 500 }}>Kalender-rolle</label>
-          <select 
-            value={role} 
-            onChange={e => setRole(e.target.value)}
-            style={{ width: '100%', padding: 8, marginTop: 6, borderRadius: 6 }}
-          >
-            {['technician', 'manager', 'admin'].map(r => (
-              <option key={r} value={r}>{r}</option>
-            ))}
-          </select>
+          <div className="flex items-center gap-3">
+            <select 
+              value={role} 
+              onChange={(e) => setRole(e.target.value)}
+              className="text-sm border rounded-lg px-3 py-1.5 bg-white"
+            >
+              <option value="coordinator">Koordinator</option>
+              <option value="manager">Leder</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
         </div>
 
-        <CalendarView role={role} />
+        {/* Content Area */}
+        <div className="flex-1 overflow-auto p-6">
+          {!selectedCustomer ? (
+            <div className="max-w-md mx-auto mt-20 text-center">
+              <div className="text-6xl mb-4">👋</div>
+              <h2 className="text-2xl font-semibold mb-2">Velkommen</h2>
+              <p className="text-gray-600">
+                Velg en kunde fra listen til venstre for å se ordre og planlegge arbeid.
+              </p>
+            </div>
+          ) : (
+            <CustomerDetail
+              customer={selectedCustomer}
+              orders={orders}
+              onBack={() => setSelectedCustomer(null)}
+              onOrderAction={refreshOrders}
+            />
+          )}
+        </div>
+      </div>
 
-        <div style={{ marginTop: 32 }}>
-          <h3 style={{ marginBottom: 12 }}>Teknikere</h3>
+      {/* Right panel - Technician quick access */}
+      <div className="w-80 border-l bg-white p-5 overflow-auto hidden xl:block">
+        <div className="mb-6">
+          <h3 className="font-semibold mb-3">Teknikere</h3>
           {technicians.map(t => (
             <div 
-              key={t.id} 
-              style={{ 
-                padding: '10px 14px', 
-                background: 'white', 
-                borderRadius: 8, 
-                marginBottom: 8,
-                border: '1px solid #e5e7eb',
-                cursor: 'pointer'
-              }}
+              key={t.id}
               onClick={() => setActiveTech(t)}
+              className="p-3 rounded-xl border mb-2 hover:bg-gray-50 cursor-pointer transition-colors"
             >
               {t.name}
             </div>
           ))}
         </div>
+
+        <div>
+          <h3 className="font-semibold mb-3">Kalender</h3>
+          <CalendarView role={role} />
+        </div>
       </div>
 
+      {/* Technician View Overlay */}
       {activeTech && (
-        <div style={{ 
-          position: 'fixed', 
-          top: 0, right: 0, bottom: 0, 
-          width: 380, 
-          background: 'white', 
-          boxShadow: '-4px 0 20px rgba(0,0,0,0.1)',
-          zIndex: 100,
-          padding: 24,
-          overflowY: 'auto'
-        }}>
-          <TechnicianView 
-            tech={activeTech} 
-            onClose={() => setActiveTech(null)} 
-          />
+        <div className="fixed inset-0 bg-black/40 flex justify-end z-50">
+          <div className="w-full max-w-md bg-white h-full overflow-auto">
+            <TechnicianView 
+              tech={activeTech} 
+              onClose={() => setActiveTech(null)} 
+            />
+          </div>
         </div>
       )}
     </div>
