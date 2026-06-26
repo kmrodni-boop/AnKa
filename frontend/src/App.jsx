@@ -4,19 +4,15 @@ import ScheduleSuggestions from './components/ScheduleSuggestions';
 import OrderForm from './components/OrderForm';
 import TechnicianView from './components/TechnicianView';
 import CalendarView from './components/CalendarView';
+import CustomerDetail from './components/CustomerDetail';
 
 export default function App() {
   const [customers, setCustomers] = React.useState([]);
   const [orders, setOrders] = React.useState([]);
-  const [selectedOrder, setSelectedOrder] = React.useState(null);
   const [technicians, setTechnicians] = React.useState([]);
+  const [selectedCustomer, setSelectedCustomer] = React.useState(null);
   const [activeTech, setActiveTech] = React.useState(null);
   const [role, setRole] = React.useState('technician');
-
-  // New state for suggestions
-  const [suggestions, setSuggestions] = React.useState([]);
-  const [loadingSuggestions, setLoadingSuggestions] = React.useState(false);
-  const [showSuggestions, setShowSuggestions] = React.useState(false);
 
   React.useEffect(() => {
     fetch('/api/customers').then(r => r.json()).then(setCustomers);
@@ -28,125 +24,112 @@ export default function App() {
     fetch('/api/orders').then(r => r.json()).then(setOrders);
   };
 
-  const handleSuggestTime = async (order) => {
-    setSelectedOrder(order);
-    setLoadingSuggestions(true);
-    setShowSuggestions(true);
-    setSuggestions([]);
-
-    try {
-      const res = await fetch('/api/schedule/suggest', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId: order.id })
-      });
-      const data = await res.json();
-      setSuggestions(data);
-    } catch (error) {
-      toast.error('Kunne ikke hente forslag');
-      setShowSuggestions(false);
-    } finally {
-      setLoadingSuggestions(false);
-    }
-  };
-
-  const handleSelectSlot = async (slot) => {
-    toast.success(`Valgte ${slot.technician?.name} - ${new Date(slot.start).toLocaleDateString('nb-NO')}`);
-    setShowSuggestions(false);
-    setSuggestions([]);
-  };
-
   return (
-    <div style={{ fontFamily: 'system-ui', padding: 24, maxWidth: 1400, margin: '0 auto' }}>
+    <div style={{ display: 'flex', height: '100vh', fontFamily: 'system-ui' }}>
       <Toaster position="top-center" />
-      
-      <h1 style={{ marginBottom: 8 }}>Nortronik Demo</h1>
-      <p style={{ color: '#666', marginBottom: 24 }}>Arbeidsordre- og planleggingssystem</p>
 
-      <div style={{ display: 'flex', gap: 40, alignItems: 'flex-start' }}>
-        {/* Customers */}
-        <section style={{ flex: 1 }}>
-          <h2>Kunder</h2>
-          <ul>
-            {customers.map(c => (
-              <li key={c.id}>{c.name} — {c.address}</li>
-            ))}
-          </ul>
-        </section>
+      {/* Sidebar - Customers */}
+      <div style={{ 
+        width: 280, 
+        borderRight: '1px solid #e5e7eb', 
+        padding: 20, 
+        background: '#f9fafb',
+        overflowY: 'auto'
+      }}>
+        <h2 style={{ marginTop: 0, marginBottom: 16 }}>Kunder</h2>
+        
+        {customers.length === 0 && <p style={{ color: '#888' }}>Ingen kunder</p>}
+        
+        {customers.map(customer => (
+          <div
+            key={customer.id}
+            onClick={() => setSelectedCustomer(customer)}
+            style={{
+              padding: '12px 16px',
+              marginBottom: 8,
+              borderRadius: 10,
+              cursor: 'pointer',
+              background: selectedCustomer?.id === customer.id ? '#dbeafe' : 'white',
+              border: selectedCustomer?.id === customer.id ? '1px solid #3b82f6' : '1px solid #e5e7eb',
+              transition: 'all 0.1s ease'
+            }}
+          >
+            <div style={{ fontWeight: 600 }}>{customer.name}</div>
+            <div style={{ fontSize: 13, color: '#666', marginTop: 2 }}>{customer.address}</div>
+          </div>
+        ))}
 
-        {/* Orders */}
-        <section style={{ flex: 1.5 }}>
-          <h2>Ordre</h2>
-          <ul style={{ marginBottom: 16 }}>
-            {orders.map(o => (
-              <li key={o.id} style={{ marginBottom: 6 }}>
-                {o.type} for kunde {o.customer_id} — est {o.estimated_hours}t{' '}
-                <button 
-                  onClick={() => handleSuggestTime(o)}
-                  style={{ 
-                    marginLeft: 8, 
-                    padding: '4px 10px', 
-                    background: '#2563eb', 
-                    color: 'white', 
-                    border: 'none', 
-                    borderRadius: 6,
-                    cursor: 'pointer'
-                  }}
-                >
-                  Finn ledig tid
-                </button>
-              </li>
-            ))}
-          </ul>
-
+        <div style={{ marginTop: 24 }}>
           <OrderForm customers={customers} onCreated={refreshOrders} />
-        </section>
-
-        {/* Technicians */}
-        <section style={{ flex: 1 }}>
-          <h2>Teknikere</h2>
-          <ul>
-            {technicians.map(t => (
-              <li key={t.id}>
-                {t.name}{' '}
-                <button onClick={() => setActiveTech(t)}>Åpne tekniker-visning</button>
-              </li>
-            ))}
-          </ul>
-        </section>
+        </div>
       </div>
 
-      {/* Calendar role selector */}
-      <div style={{ marginTop: 24, marginBottom: 12 }}>
-        <label>
-          Kalender-rolle:{' '}
-          <select value={role} onChange={e => setRole(e.target.value)}>
+      {/* Main Content */}
+      <div style={{ flex: 1, padding: 24, overflowY: 'auto' }}>
+        {!selectedCustomer ? (
+          <div style={{ textAlign: 'center', paddingTop: 80, color: '#666' }}>
+            <h2>Velg en kunde fra listen</h2>
+            <p>eller opprett en ny ordre</p>
+          </div>
+        ) : (
+          <CustomerDetail
+            customer={selectedCustomer}
+            orders={orders}
+            onBack={() => setSelectedCustomer(null)}
+            onOrderAction={() => {}}
+          />
+        )}
+      </div>
+
+      {/* Right side - Technician + Calendar */}
+      <div style={{ width: 320, borderLeft: '1px solid #e5e7eb', padding: 20, background: '#f9fafb', overflowY: 'auto' }}>
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ fontSize: 14, fontWeight: 500 }}>Kalender-rolle</label>
+          <select 
+            value={role} 
+            onChange={e => setRole(e.target.value)}
+            style={{ width: '100%', padding: 8, marginTop: 6, borderRadius: 6 }}
+          >
             {['technician', 'manager', 'admin'].map(r => (
               <option key={r} value={r}>{r}</option>
             ))}
           </select>
-        </label>
+        </div>
+
+        <CalendarView role={role} />
+
+        <div style={{ marginTop: 32 }}>
+          <h3 style={{ marginBottom: 12 }}>Teknikere</h3>
+          {technicians.map(t => (
+            <div 
+              key={t.id} 
+              style={{ 
+                padding: '10px 14px', 
+                background: 'white', 
+                borderRadius: 8, 
+                marginBottom: 8,
+                border: '1px solid #e5e7eb',
+                cursor: 'pointer'
+              }}
+              onClick={() => setActiveTech(t)}
+            >
+              {t.name}
+            </div>
+          ))}
+        </div>
       </div>
 
-      <CalendarView role={role} />
-
-      {/* Suggestions Panel */}
-      {showSuggestions && selectedOrder && (
-        <div style={{ marginTop: 24 }}>
-          <ScheduleSuggestions
-            suggestions={suggestions}
-            loading={loadingSuggestions}
-            onSelect={handleSelectSlot}
-            onClose={() => {
-              setShowSuggestions(false);
-              setSuggestions([]);
-            }}
-          />
-        </div>
-      )}
-
       {activeTech && (
-        <div style={{ marginTop: 24 }}>
+        <div style={{ 
+          position: 'fixed', 
+          top: 0, right: 0, bottom: 0, 
+          width: 380, 
+          background: 'white', 
+          boxShadow: '-4px 0 20px rgba(0,0,0,0.1)',
+          zIndex: 100,
+          padding: 24,
+          overflowY: 'auto'
+        }}>
           <TechnicianView 
             tech={activeTech} 
             onClose={() => setActiveTech(null)} 
