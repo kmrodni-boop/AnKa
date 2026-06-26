@@ -1,7 +1,7 @@
 const Database = require('better-sqlite3');
 const fs = require('fs');
 const path = require('path');
-const { haversineKm } = require('./utils/geo');
+const { calculateSlotScore } = require('./utils/scoring');
 
 const DB_PATH = path.join(__dirname, '..', '..', 'data', 'demo.db');
 
@@ -174,7 +174,68 @@ function findGaps(bookings, dayStart, dayEnd, neededHours) {
   return gaps;
 }
 
-function hoursBetween(a,b){ return Math.abs(b - a) / 3600000 }
+// Ny og mye bedre suggestForOrder
+function suggestForOrder(orderId) {
+  const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+  if (!order) return [];
+
+  const techs = db.prepare('SELECT * FROM technicians').all().filter(t => {
+    try {
+      const skills = JSON.parse(t.skills || '[]');
+      return skills.includes(order.type);
+    } catch(e){ return false }
+  });
+
+  const now = new Date();
+  const horizonDays = 7;
+  const suggestions = [];
+
+  for (const tech of techs) {
+    const bookings = getBookingsForTech(tech.id);
+
+    for (let d = 0; d < horizonDays; d++) {
+      const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() + d);
+      const dayStart = new Date(day); dayStart.setHours(8, 0, 0, 0);
+      const dayEnd = new Date(day); dayEnd.setHours(16, 0, 0, 0);
+
+      const gaps = findGaps(bookings, dayStart, dayEnd, order.estimated_hours || 2);
+
+      for (const g of gaps) {
+        const slotInfo = calculateSlotScore({
+          tech,
+          gap: {
+            start: g.start,
+            end: g.end,
+            prevLat: tech.base_lat,
+            prevLng: tech.base_lng,
+            nextLat: tech.base_lat,
+            nextLng: tech.base_lng
+          },
+          newJob: {
+            lat: order.lat,
+            lng: order.lng,
+            dueDate: new Date(now.getTime() + 7 * 24 * 3600 * 1000)
+          },
+          existingBookings: bookings
+        });
+
+        suggestions.push({
+          technician: tech,
+          start: g.start.toISOString(),
+          end: g.end.toISOString(),
+          score: slotInfo.score,
+          reason: slotInfo.reason,
+          travelTimeMinutes: slotInfo.travelTimeMinutes,
+          travelDistanceKm: slotInfo.travelDistanceKm
+        });
+      }
+    }
+  }
+
+  return suggestions
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5);
+}
 
 module.exports = {
   db,
@@ -194,7 +255,6 @@ module.exports = {
   getCalendarItems,
   getOrders: () => db.prepare('SELECT * FROM orders').all(),
   createOrder: ({ customer_id, type, estimated_hours, lat, lng, assigned_tech_id }) => {
-    // fill lat/lng from customer if not provided
     let latv = lat, lngv = lng;
     if ((!latv || !lngv) && customer_id) {
       const c = db.prepare('SELECT lat,lng FROM customers WHERE id = ?').get(customer_id);
@@ -204,49 +264,5 @@ module.exports = {
     const info = st.run(customer_id, type, 'open', estimated_hours || 1, latv, lngv, assigned_tech_id || null);
     return info.lastInsertRowid;
   },
-  suggestForOrder: (orderId) => {
-    const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
-    if (!order) return [];
-
-    const techs = db.prepare('SELECT * FROM technicians').all().filter(t => {
-      try {
-        const skills = JSON.parse(t.skills || '[]');
-        return skills.includes(order.type);
-      } catch(e){ return false }
-    });
-
-    const now = new Date();
-    const horizonDays = 7;
-    const suggestions = [];
-
-    for (const tech of techs) {
-      const bookings = getBookingsForTech(tech.id);
-
-      for (let d=0; d<horizonDays; d++) {
-        const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() + d);
-        const dayStart = new Date(day); dayStart.setHours(8,0,0,0);
-        const dayEnd = new Date(day); dayEnd.setHours(16,0,0,0);
-
-        const gaps = findGaps(bookings, dayStart, dayEnd, order.estimated_hours);
-
-        for (const g of gaps) {
-          const distanceKm = haversineKm(tech.base_lat, tech.base_lng, order.lat, order.lng);
-          const travelMinutes = Math.round(distanceKm); // ~1 min per km at 60 km/h
-          const daysOut = Math.round((g.start - now) / (24*3600*1000));
-          const score = Math.max(0, Math.round(100 - travelMinutes - daysOut*5));
-
-          suggestions.push({
-            technician: tech,
-            start: g.start.toISOString(),
-            end: g.end.toISOString(),
-            travelMinutes,
-            score,
-            reason: `~${distanceKm.toFixed(1)} km from tech base, ${daysOut} days out`
-          });
-        }
-      }
-    }
-
-    return suggestions.sort((a,b)=>b.score-a.score).slice(0,5);
-  }
+  suggestForOrder
 };
