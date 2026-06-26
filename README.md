@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Nortronik Demo
 
 Minimal scaffold for the Nortronik demo MVP.
@@ -39,3 +40,6 @@ Open `http://localhost:3000` for the frontend (proxied to backend `/api`).
 ## Demo script
 
 See `docs/demo-script.md` for a step-by-step walkthrough.
+=======
+# AnKa
+>>>>>>> d701f490ab8b91c79a41bffa6a1c20d5be3a64e4
