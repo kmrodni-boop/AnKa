@@ -1,12 +1,12 @@
-<<<<<<< HEAD
-# Nortronik Demo
+# Nortronik AnKa Demo
 
-Minimal scaffold for the Nortronik demo MVP.
+En fungerende prototype av et moderne arbeidsordre- og planleggingssystem for Nortronik.
 
-## Run locally
+Målet er å erstatte det gamle RDP-baserte systemet med en moderne webapplikasjon som gir bedre tilgjengelighet, smartere planlegging og bedre brukeropplevelse for både koordinatorer og teknikere.
+
+## 🚀 Kom i gang lokalt
 
 ### Backend
-
 ```bash
 cd backend
 npm install
@@ -14,32 +14,47 @@ npm start
 ```
 
 ### Frontend
-
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-Open `http://localhost:3000` for the frontend (proxied to backend `/api`).
+Åpne [http://localhost:5173](http://localhost:5173) (eller porten Vite bruker).
 
-## Demo flow
+## Demo-flow (anbefalt rekkefølge)
 
-1. Create an order from the main UI.
-2. Use **Suggest time** to see schedule proposals.
-3. Open a technician view and add checklist items.
-4. Run **AI review** and complete the order.
-5. Switch calendar role between `technician` and `manager` to show sensitive masking.
+1. Logg inn / velg rolle (koordinator / tekniker / admin)
+2. Opprett en ny ordre fra hovedskjermen
+3. Trykk **"Suggest time"** og se smarte planleggingsforslag
+4. Velg et tidspunkt → ordren blir planlagt
+5. Åpne **Technician view** og fullfør en jobb (sjekkliste + materiell)
+6. Se AI Review av sjekklisten (via Ollama)
+7. Fullfør ordren og se automatisk opprettelse av neste årskontroll + avviksordre
+8. Bytt rolle i kalenderen for å se sikkerhetsmasking ("Super secret mission")
 
-## Notes
+## Prosjektstruktur
 
-- The backend stores demo data in `data/demo.db`.
-- `backend/src/ai.js` supports local Ollama AI review via `OLLAMA_URL`.
-- The frontend includes orders, suggestions, technician workflow, checklist, and calendar masking.
+```
+nortronik-demo/
+├── backend/          # Express + SQLite + planleggingsalgoritme
+├── frontend/         # Vite + React + Tailwind
+├── data/             # Demo database
+└── docs/             # Demo-script + planer
+```
 
-## Demo script
+## Teknologi
 
-See `docs/demo-script.md` for a step-by-step walkthrough.
-=======
-# AnKa
->>>>>>> d701f490ab8b91c79a41bffa6a1c20d5be3a64e4
+- **Backend**: Node.js + Express + better-sqlite3
+- **Frontend**: React + Vite + Tailwind + DaisyUI
+- **Kart**: Leaflet
+- **AI (valgfritt)**: Ollama (lokal)
+- **Database**: SQLite (enkel fil for demo)
+
+## Neste steg / Utvikling
+
+Se `docs/Nortronik_Demo_Polish_Plan.md` for en prioritert liste over hva som bør forbedres før demo/pitch.
+
+## Lisens
+
+MIT
