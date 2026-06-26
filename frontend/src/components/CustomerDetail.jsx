@@ -28,11 +28,31 @@ export default function CustomerDetail({ customer, orders, onOrderAction, onBack
     }
   };
 
-  const handleSelectSlot = (slot) => {
-    alert(`Valgte ${slot.technician?.name} - ${new Date(slot.start).toLocaleDateString('nb-NO')}`);
-    setSelectedOrderForSuggestions(null);
-    setSuggestions([]);
-    // Her kan du senere legge til logikk for å oppdatere ordren
+  const handleSelectSlot = async (slot) => {
+    if (!selectedOrderForSuggestions) return;
+
+    try {
+      // Update order with assigned technician and planned time
+      await fetch(`/api/orders/${selectedOrderForSuggestions.id}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          status: 'planlagt',
+          assigned_tech_id: slot.technician.id,
+          scheduled_start: slot.start,
+          scheduled_end: slot.end
+        })
+      });
+
+      alert(`Ordre planlagt med ${slot.technician?.name}`);
+      setSelectedOrderForSuggestions(null);
+      setSuggestions([]);
+      
+      // Refresh orders (parent should ideally do this, but for demo we can alert)
+      window.location.reload(); // enkel løsning for demo
+    } catch (e) {
+      alert('Kunne ikke planlegge ordre');
+    }
   };
 
   return (
