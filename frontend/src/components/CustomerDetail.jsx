@@ -1,16 +1,16 @@
 import React from 'react';
 import ScheduleSuggestions from './ScheduleSuggestions';
 
-export default function CustomerDetail({ customer, orders, onOrderAction, onBack }) {
-  const [selectedOrderForSuggestions, setSelectedOrderForSuggestions] = React.useState(null);
+export default function CustomerDetail({ customer, orders, onBack, onOrderAction }) {
+  const [selectedOrder, setSelectedOrder] = React.useState(null);
   const [suggestions, setSuggestions] = React.useState([]);
-  const [loadingSuggestions, setLoadingSuggestions] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
 
   const customerOrders = orders.filter(o => o.customer_id === customer.id);
 
   const handleFindTime = async (order) => {
-    setSelectedOrderForSuggestions(order);
-    setLoadingSuggestions(true);
+    setSelectedOrder(order);
+    setLoading(true);
     setSuggestions([]);
 
     try {
@@ -22,34 +22,29 @@ export default function CustomerDetail({ customer, orders, onOrderAction, onBack
       const data = await res.json();
       setSuggestions(data);
     } catch (e) {
-      alert('Kunne ikke hente forslag');
+      alert('Kunne ikke laste forslag');
     } finally {
-      setLoadingSuggestions(false);
+      setLoading(false);
     }
   };
 
   const handleSelectSlot = async (slot) => {
-    if (!selectedOrderForSuggestions) return;
-
     try {
-      // Update order with assigned technician and planned time
-      await fetch(`/api/orders/${selectedOrderForSuggestions.id}/status`, {
+      await fetch(`/api/orders/${selectedOrder.id}/status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           status: 'planlagt',
-          assigned_tech_id: slot.technician.id,
+          assigned_tech_id: slot.technician?.id,
           scheduled_start: slot.start,
           scheduled_end: slot.end
         })
       });
 
       alert(`Ordre planlagt med ${slot.technician?.name}`);
-      setSelectedOrderForSuggestions(null);
+      setSelectedOrder(null);
       setSuggestions([]);
-      
-      // Refresh orders (parent should ideally do this, but for demo we can alert)
-      window.location.reload(); // enkel løsning for demo
+      if (onOrderAction) onOrderAction();
     } catch (e) {
       alert('Kunne ikke planlegge ordre');
     }
@@ -57,67 +52,66 @@ export default function CustomerDetail({ customer, orders, onOrderAction, onBack
 
   return (
     <div>
-      <button 
+      <button
         onClick={onBack}
-        style={{ marginBottom: 16, padding: '6px 12px', background: '#f3f4f6', border: 'none', borderRadius: 6, cursor: 'pointer' }}
+        className="mb-6 text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
       >
-        ← Tilbake til oversikt
+        ← Tilbake til kundeoversikt
       </button>
 
-      <h2 style={{ marginBottom: 4 }}>{customer.name}</h2>
-      <p style={{ color: '#666', marginBottom: 20 }}>{customer.address}</p>
+      <div className="mb-8">
+        <h1 className="text-3xl font-semibold text-gray-900">{customer.name}</h1>
+        <p className="text-gray-600 mt-1">{customer.address}</p>
+      </div>
 
-      <h3>Ordre</h3>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-semibold">Ordre</h2>
+        <span className="text-sm text-gray-500">{customerOrders.length} ordre</span>
+      </div>
 
       {customerOrders.length === 0 && (
-        <p style={{ color: '#888' }}>Ingen ordre på denne kunden ennå.</p>
+        <div className="bg-white border rounded-2xl p-8 text-center text-gray-500">
+          Ingen ordre på denne kunden ennå.
+        </div>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {customerOrders.map(order => (
-          <div 
+      <div className="grid gap-4">
+        {customerOrders.map((order) => (
+          <div
             key={order.id}
-            style={{ 
-              border: '1px solid #ddd', 
-              borderRadius: 12, 
-              padding: 16,
-              background: 'white'
-            }}
+            className="bg-white border rounded-2xl p-6 hover:shadow-sm transition-shadow"
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div className="flex justify-between items-start">
               <div>
-                <div style={{ fontWeight: 600, fontSize: 18 }}>
-                  {order.type} – Est. {order.estimated_hours} timer
+                <div className="font-semibold text-xl text-gray-900">
+                  {order.type}
                 </div>
-                <div style={{ color: '#666', fontSize: 14, marginTop: 4 }}>
-                  Status: {order.status || 'open'}
+                <div className="text-gray-600 mt-1">
+                  Estimert tid: {order.estimated_hours} timer
+                </div>
+                <div className="mt-2">
+                  <span className="inline-block px-3 py-1 text-xs rounded-full bg-gray-100 text-gray-700">
+                    {order.status || 'open'}
+                  </span>
                 </div>
               </div>
 
-              <button 
+              <button
                 onClick={() => handleFindTime(order)}
-                style={{
-                  background: '#2563eb',
-                  color: 'white',
-                  border: 'none',
-                  padding: '8px 16px',
-                  borderRadius: 8,
-                  cursor: 'pointer',
-                  fontWeight: 500
-                }}
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors"
               >
                 Finn ledig tid
               </button>
             </div>
 
-            {selectedOrderForSuggestions?.id === order.id && (
-              <div style={{ marginTop: 16 }}>
+            {selectedOrder?.id === order.id && (
+              <div className="mt-6 pt-6 border-t">
                 <ScheduleSuggestions
                   suggestions={suggestions}
-                  loading={loadingSuggestions}
+                  loading={loading}
                   onSelect={handleSelectSlot}
                   onClose={() => {
-                    setSelectedOrderForSuggestions(null);
+                    setSelectedOrder(null);
                     setSuggestions([]);
                   }}
                 />
