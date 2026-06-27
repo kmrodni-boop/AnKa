@@ -125,25 +125,25 @@ function seed() {
     )
   `);
 
-  // Bergen-baserte teknikere
+  // Ålesund-baserte teknikere (2 stk)
   alasql.exec(`INSERT INTO demo.technicians (id,name,base_lat,base_lng,skills,clearance_level) VALUES 
-    (1, 'Ola Nordmann', 60.391, 5.322, '${JSON.stringify(['årskontroll', 'service', 'inspection', 'trykktest'])}', 1),
-    (2, 'Kari Teknisk', 60.385, 5.332, '${JSON.stringify(['inspection', 'årskontroll', 'vedlikehold'])}', 0),
-    (3, 'Per Fiksit', 60.420, 5.350, '${JSON.stringify(['service', 'reparasjon', 'trykktest'])}', 1),
-    (4, 'Anne Service', 60.405, 5.315, '${JSON.stringify(['årskontroll', 'service', 'inspection'])}', 0)
+    (1, 'Ola Nordmann', 62.470, 6.150, '${JSON.stringify(['årskontroll', 'service', 'inspection', 'trykktest'])}', 1),
+    (2, 'Kari Teknisk', 62.472, 6.155, '${JSON.stringify(['inspection', 'årskontroll', 'vedlikehold'])}', 0)
   `);
 
-  // Førde-baserte teknikere
+  // Førde-baserte teknikere (4 stk)
   alasql.exec(`INSERT INTO demo.technicians (id,name,base_lat,base_lng,skills,clearance_level) VALUES 
-    (5, 'Lars Fjord', 61.440, 5.820, '${JSON.stringify(['årskontroll', 'inspection', 'service'])}', 0),
-    (6, 'Marte Vest', 61.460, 5.850, '${JSON.stringify(['service', 'vedlikehold', 'trykktest'])}', 1)
+    (3, 'Lars Fjord', 61.440, 5.820, '${JSON.stringify(['årskontroll', 'inspection', 'service'])}', 0),
+    (4, 'Marte Vest', 61.460, 5.850, '${JSON.stringify(['service', 'vedlikehold', 'trykktest'])}', 1),
+    (5, 'Per Fiksit', 61.445, 5.825, '${JSON.stringify(['service', 'reparasjon', 'trykktest'])}', 1),
+    (6, 'Anne Service', 61.455, 5.845, '${JSON.stringify(['årskontroll', 'service', 'inspection'])}', 0)
   `);
 
-  // Tromsø-baserte teknikere (med clearance)
+  // Lillestrøm-baserte teknikere (3 stk)
   alasql.exec(`INSERT INTO demo.technicians (id,name,base_lat,base_lng,skills,clearance_level) VALUES 
-    (7, 'Morten Polar', 69.650, 18.950, '${JSON.stringify(['årskontroll', 'service', 'sikkerhet'])}', 3),
-    (8, 'Anne Nordlys', 69.670, 18.920, '${JSON.stringify(['inspection', 'vedlikehold', 'trykktest'])}', 2),
-    (9, 'Knut Isfjord', 69.660, 18.940, '${JSON.stringify(['årskontroll', 'service', 'inspection'])}', 2)
+    (7, 'Morten Oslo', 60.000, 11.050, '${JSON.stringify(['årskontroll', 'service', 'sikkerhet'])}', 3),
+    (8, 'Anne Akershus', 59.995, 11.045, '${JSON.stringify(['inspection', 'vedlikehold', 'trykktest'])}', 2),
+    (9, 'Knut Lillestrøm', 59.985, 11.055, '${JSON.stringify(['årskontroll', 'service', 'inspection'])}', 2)
   `);
 
   // ===== ORDRE =====
