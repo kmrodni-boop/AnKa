@@ -14,7 +14,7 @@ ensureDir(DB_PATH);
 
 // Initialize alasql database
 let db;
-function initDb() {
+async function initDb() {
   // Check if database file exists and is valid JSON
   let dbData = null;
   if (fs.existsSync(DB_PATH)) {
@@ -24,14 +24,18 @@ function initDb() {
       if (fileContent.trim().startsWith('{') || fileContent.trim().startsWith('[')) {
         dbData = JSON.parse(fileContent);
       } else {
-        // It's a SQLite binary file, ignore it and recreate
-        console.log('Found SQLite binary file, recreating database with alasql format');
+        // It's a SQLite binary file or invalid, remove it and recreate
+        console.log('Found non-JSON database file, recreating with alasql format');
         fs.unlinkSync(DB_PATH);
       }
     } catch (e) {
-      // File exists but can't be read as JSON, remove it
-      console.log('Invalid database file, recreating...');
-      fs.unlinkSync(DB_PATH);
+      // File exists but can't be read as JSON/UTF-8 (probably binary SQLite), remove it
+      console.log('Invalid database file (probably SQLite binary), recreating...');
+      try {
+        fs.unlinkSync(DB_PATH);
+      } catch (e2) {
+        console.log('Could not remove old database file:', e2.message);
+      }
     }
   }
   
