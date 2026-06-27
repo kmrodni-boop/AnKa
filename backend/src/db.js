@@ -15,18 +15,35 @@ ensureDir(DB_PATH);
 // Initialize alasql database
 let db;
 function initDb() {
-  // Check if database file exists
+  // Check if database file exists and is valid JSON
+  let dbData = null;
   if (fs.existsSync(DB_PATH)) {
-    const dbData = JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
-    alasql.databases.demo = new alasql.Database('demo');
-    db = alasql.databases.demo;
+    try {
+      const fileContent = fs.readFileSync(DB_PATH, 'utf8');
+      // Check if it's valid JSON (alasql format) or SQLite binary
+      if (fileContent.trim().startsWith('{') || fileContent.trim().startsWith('[')) {
+        dbData = JSON.parse(fileContent);
+      } else {
+        // It's a SQLite binary file, ignore it and recreate
+        console.log('Found SQLite binary file, recreating database with alasql format');
+        fs.unlinkSync(DB_PATH);
+      }
+    } catch (e) {
+      // File exists but can't be read as JSON, remove it
+      console.log('Invalid database file, recreating...');
+      fs.unlinkSync(DB_PATH);
+    }
+  }
+  
+  alasql.databases.demo = new alasql.Database('demo');
+  db = alasql.databases.demo;
+  
+  if (dbData) {
     // Import data
     for (const tableName in dbData) {
       db.tables[tableName] = dbData[tableName];
     }
   } else {
-    alasql.databases.demo = new alasql.Database('demo');
-    db = alasql.databases.demo;
     seed();
     saveDb();
   }
