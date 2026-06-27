@@ -52,14 +52,14 @@ export default function OrderForm({ customers, onCreated }) {
     { value: 'service', label: 'Service', icon: '🔧' },
     { value: 'inspection', label: 'Inspeksjon', icon: '🔍' },
     { value: 'trykktest', label: 'Trykktest', icon: '⚙️' },
-    { value: 'vedlikehold', label: 'Vedlikehold', icon: '🛠️' }
+    { value: 'vedlikehold', label: 'Vedlikehold', icon: '🏗️' }
   ];
 
   return (
     <div>
       <button
         onClick={() => setIsOpen(true)}
-        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl font-semibold transition-all shadow-sm hover:shadow-md"
+        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#520000] hover:bg-[#3a0000] text-white rounded-xl font-semibold transition-all shadow-sm hover:shadow-md"
       >
         <span>➕</span>
         Opprett ny ordre
@@ -87,7 +87,7 @@ export default function OrderForm({ customers, onCreated }) {
                 <select
                   value={formData.customer_id}
                   onChange={(e) => setFormData({...formData, customer_id: e.target.value})}
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#520000] focus:border-transparent"
                   required
                 >
                   <option value="">Velg kunde</option>
@@ -112,7 +112,7 @@ export default function OrderForm({ customers, onCreated }) {
                       onClick={() => setFormData({...formData, type: type.value})}
                       className={`p-3 rounded-xl border-2 transition-all ${
                         formData.type === type.value
-                          ? 'border-blue-500 bg-blue-50'
+                          ? 'border-[#520000] bg-red-50'
                           : 'border-gray-200 hover:border-gray-300'
                       }`}
                     >
@@ -134,7 +134,7 @@ export default function OrderForm({ customers, onCreated }) {
                   onChange={(e) => setFormData({...formData, estimated_hours: parseFloat(e.target.value) || 0})}
                   min="0.5"
                   step="0.5"
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#520000] focus:border-transparent"
                   required
                 />
               </div>
@@ -149,7 +149,7 @@ export default function OrderForm({ customers, onCreated }) {
                   onChange={(e) => setFormData({...formData, notes: e.target.value})}
                   placeholder="Legg til ekstra informasjon om ordren..."
                   rows={3}
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#520000] focus:border-transparent resize-none"
                 />
               </div>
 
@@ -164,7 +164,7 @@ export default function OrderForm({ customers, onCreated }) {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 px-4 py-2.5 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white rounded-xl text-sm font-medium transition-colors shadow-sm hover:shadow-md disabled:cursor-not-allowed"
+                  className="flex-1 px-4 py-2.5 bg-[#520000] hover:bg-[#3a0000] disabled:bg-[#8a4a4a] text-white rounded-xl text-sm font-medium transition-colors shadow-sm hover:shadow-md disabled:cursor-not-allowed"
                 >
                   {loading ? (
                     <span className="flex items-center justify-center gap-2">

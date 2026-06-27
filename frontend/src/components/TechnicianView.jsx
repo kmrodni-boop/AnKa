@@ -115,7 +115,7 @@ export default function TechnicianView({ tech, onClose, role }) {
     return (
       <div className="p-6">
         <div className="flex items-center justify-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#520000]"></div>
           <span className="ml-3 text-gray-600">Laster ordre...</span>
         </div>
       </div>
@@ -125,18 +125,18 @@ export default function TechnicianView({ tech, onClose, role }) {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="p-6 border-b bg-gradient-to-r from-blue-600 to-blue-800">
+      <div className="p-6 border-b bg-gradient-to-r from-[#520000] to-[#3a0000]">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
               onClick={onClose}
-              className="text-white hover:text-gray-200 text-2xl"
+              className="text-white hover:text-red-100 text-2xl"
             >
               ×
             </button>
             <div>
               <h2 className="text-xl font-bold text-white">{tech.name}</h2>
-              <p className="text-blue-100 text-sm">Tekniker-visning</p>
+              <p className="text-red-100 text-sm">Tekniker-visning</p>
             </div>
           </div>
         </div>
@@ -172,8 +172,8 @@ export default function TechnicianView({ tech, onClose, role }) {
       {/* Orders list */}
       <div className="flex-1 overflow-auto p-6 bg-gray-50">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">Mine ordre</h3>
-          <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+          <h3 className="text-lg font-semibold text-[#520000]">Mine ordre</h3>
+          <span className="text-sm text-white bg-[#520000] px-3 py-1 rounded-full">
             {orders.length} aktive
           </span>
         </div>
@@ -210,13 +210,13 @@ export default function TechnicianView({ tech, onClose, role }) {
                   
                   <div className="flex items-center gap-4 mt-3 text-sm">
                     {order.scheduled_start && (
-                      <span className="text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
+                      <span className="text-[#520000] bg-red-50 px-3 py-1 rounded-full">
                         {formatDate(order.scheduled_start)}
                       </span>
                     )}
                     {order.scheduled_start && (
-                      <span className="text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
-                        {formatTime(order.scheduled_start)} – {formatTime(order.scheduled_end)}
+                      <span className="text-[#520000] bg-red-50 px-3 py-1 rounded-full">
+                        {formatTime(order.scheduled_start)} − {formatTime(order.scheduled_end)}
                       </span>
                     )}
                     <span className="text-gray-600 bg-gray-100 px-3 py-1 rounded-full">
@@ -236,7 +236,7 @@ export default function TechnicianView({ tech, onClose, role }) {
                 {order.status === 'planlagt' && (
                   <button
                     onClick={() => handleStartJob(order)}
-                    className="flex-1 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-medium transition-colors shadow-sm"
+                    className="flex-1 px-4 py-2.5 bg-[#520000] hover:bg-[#3a0000] text-white rounded-xl text-sm font-medium transition-colors shadow-sm"
                   >
                     Start jobb
                   </button>
@@ -255,7 +255,7 @@ export default function TechnicianView({ tech, onClose, role }) {
                     </button>
                     <button
                       onClick={() => handleCompleteJob(order)}
-                      className="flex-1 px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-medium transition-colors"
+                      className="flex-1 px-4 py-2.5 bg-[#520000] hover:bg-[#3a0000] text-white rounded-xl text-sm font-medium transition-colors"
                     >
                       Fullfør
                     </button>
@@ -272,7 +272,7 @@ export default function TechnicianView({ tech, onClose, role }) {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-auto">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-semibold">Sjekkliste for {selectedOrder.type}</h3>
+              <h3 className="text-xl font-semibold text-[#520000]">Sjekkliste for {selectedOrder.type}</h3>
               <button
                 onClick={() => {
                   setShowChecklist(false);
@@ -302,7 +302,7 @@ export default function TechnicianView({ tech, onClose, role }) {
             
             {reviewLoading && (
               <div className="mt-4 p-4 bg-gray-50 rounded-xl text-center">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#520000] mx-auto"></div>
                 <p className="text-gray-600 mt-2">Kjører AI-review...</p>
               </div>
             )}
@@ -335,7 +335,7 @@ export default function TechnicianView({ tech, onClose, role }) {
               </button>
               <button
                 onClick={() => handleCompleteJob(selectedOrder)}
-                className="flex-1 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-medium transition-colors"
+                className="flex-1 px-4 py-2.5 bg-[#520000] hover:bg-[#3a0000] text-white rounded-xl text-sm font-medium transition-colors"
               >
                 Fullfør jobb
               </button>

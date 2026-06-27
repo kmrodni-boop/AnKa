@@ -36,7 +36,7 @@ export default function CalendarView({ role }) {
   if (loading) {
     return (
       <div className="p-4 text-center text-gray-500">
-        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#520000] mx-auto"></div>
       </div>
     );
   }
@@ -66,7 +66,7 @@ export default function CalendarView({ role }) {
     <div className="space-y-4 max-h-[400px] overflow-auto">
       {Object.entries(groupedByDate).map(([date, dateItems]) => (
         <div key={date} className="bg-white border rounded-xl p-4 shadow-sm">
-          <div className="font-semibold text-gray-900 mb-3 border-b pb-2">{date}</div>
+          <div className="font-semibold text-[#520000] mb-3 border-b border-[#520000]/20 pb-2">{date}</div>
           <div className="space-y-2">
             {dateItems.map((item) => (
               <div 
@@ -74,7 +74,7 @@ export default function CalendarView({ role }) {
                 className={`p-3 rounded-lg text-sm transition-colors ${
                   item.masked 
                     ? 'bg-gray-100 border border-gray-200' 
-                    : 'bg-blue-50 border border-blue-100'
+                    : 'bg-red-50 border border-[#520000]/20'
                 }`}
               >
                 <div className="flex justify-between items-center">
@@ -83,7 +83,7 @@ export default function CalendarView({ role }) {
                       {item.masked ? (
                         <span className="text-orange-600">🔒 {item.display_name}</span>
                       ) : (
-                        <span className="text-blue-700">{item.display_name}</span>
+                        <span className="text-[#520000]">{item.display_name}</span>
                       )}
                     </div>
                     <div className="text-xs text-gray-500">
@@ -91,8 +91,8 @@ export default function CalendarView({ role }) {
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-gray-600">
-                      {formatTime(item.start_time)} – {formatTime(item.end_time)}
+                    <div className="text-[#520000]">
+                      {formatTime(item.start_time)} − {formatTime(item.end_time)}
                     </div>
                   </div>
                 </div>

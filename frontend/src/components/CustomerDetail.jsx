@@ -20,6 +20,8 @@ export default function CustomerDetail({ customer, orders, technicians, onBack, 
         return 'bg-purple-100 text-purple-700';
       case 'done':
         return 'bg-green-100 text-green-700';
+      case 'kritisk':
+        return 'bg-[#520000] text-white';
       default:
         return 'bg-gray-100 text-gray-700';
     }
@@ -35,6 +37,8 @@ export default function CustomerDetail({ customer, orders, technicians, onBack, 
         return 'Under arbeid';
       case 'done':
         return 'Ferdig';
+      case 'kritisk':
+        return 'Kritisk';
       default:
         return status || 'Ukjent';
     }
@@ -118,7 +122,7 @@ export default function CustomerDetail({ customer, orders, technicians, onBack, 
           ←
         </button>
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="text-3xl font-bold text-[#520000] flex items-center gap-2">
             {customer.requires_clearance && <span>🔒</span>}
             {customer.name}
           </h1>
@@ -148,8 +152,8 @@ export default function CustomerDetail({ customer, orders, technicians, onBack, 
       {/* Orders section */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-900">Ordrer</h2>
-          <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+          <h2 className="text-xl font-semibold text-[#520000]">Ordrer</h2>
+          <span className="text-sm text-white bg-[#520000] px-3 py-1 rounded-full">
             {customerOrders.length} ordre
           </span>
         </div>
@@ -200,7 +204,7 @@ export default function CustomerDetail({ customer, orders, technicians, onBack, 
                       )}
                       
                       {order.scheduled_start && (
-                        <span className="text-sm text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
+                        <span className="text-sm text-[#520000] bg-red-50 px-3 py-1 rounded-full">
                           {formatDate(order.scheduled_start)}
                         </span>
                       )}
@@ -217,7 +221,7 @@ export default function CustomerDetail({ customer, orders, technicians, onBack, 
                     {order.status === 'open' && (
                       <button
                         onClick={() => handleFindTime(order)}
-                        className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors shadow-sm hover:shadow-md"
+                        className="px-5 py-2.5 bg-[#520000] hover:bg-[#3a0000] text-white rounded-xl text-sm font-medium transition-colors shadow-sm hover:shadow-md"
                       >
                         Finn ledig tid
                       </button>
