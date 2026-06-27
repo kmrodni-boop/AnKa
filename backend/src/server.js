@@ -65,23 +65,15 @@ app.patch('/api/checklist/:itemId', (req, res) => {
   res.json({ changes });
 });
 
-// Oppdater ordre-status med støtte for tildeling og tid
 app.post('/api/orders/:id/status', (req, res) => {
   const id = parseInt(req.params.id, 10);
   const { status, assigned_tech_id, scheduled_start, scheduled_end } = req.body;
   if (!status) return res.status(400).json({ error: 'status required' });
   
-  const changes = db.updateOrderStatus(
-    id, 
-    status, 
-    assigned_tech_id || null,
-    scheduled_start || null,
-    scheduled_end || null
-  );
+  const changes = db.updateOrderStatus(id, status, assigned_tech_id || null, scheduled_start || null, scheduled_end || null);
   res.json({ changes });
 });
 
-// Full oppdatering av ordre
 app.patch('/api/orders/:id', (req, res) => {
   const id = parseInt(req.params.id, 10);
   const updates = req.body;
