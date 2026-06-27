@@ -1,4 +1,4 @@
-const Database = require('better-sqlite3');
+const alasql = require('alasql');
 const fs = require('fs');
 const path = require('path');
 const { calculateSlotScore } = require('./utils/scoring');
@@ -12,217 +12,289 @@ function ensureDir(p) {
 
 ensureDir(DB_PATH);
 
-const db = new Database(DB_PATH);
+// Initialize alasql database
+let db;
+function initDb() {
+  // Check if database file exists
+  if (fs.existsSync(DB_PATH)) {
+    const dbData = JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
+    alasql.databases.demo = new alasql.Database('demo');
+    db = alasql.databases.demo;
+    // Import data
+    for (const tableName in dbData) {
+      db.tables[tableName] = dbData[tableName];
+    }
+  } else {
+    alasql.databases.demo = new alasql.Database('demo');
+    db = alasql.databases.demo;
+    seed();
+    saveDb();
+  }
+  
+  return Promise.resolve();
+}
 
-function init() {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS customers (
-      id INTEGER PRIMARY KEY,
-      name TEXT,
-      address TEXT,
-      lat REAL,
-      lng REAL,
-      postal_code TEXT,
-      region TEXT,
-      requires_clearance INTEGER DEFAULT 0
-    );
-
-    CREATE TABLE IF NOT EXISTS technicians (
-      id INTEGER PRIMARY KEY,
-      name TEXT,
-      base_lat REAL,
-      base_lng REAL,
-      skills TEXT,
-      clearance_level INTEGER DEFAULT 0
-    );
-
-    CREATE TABLE IF NOT EXISTS orders (
-      id INTEGER PRIMARY KEY,
-      customer_id INTEGER,
-      type TEXT,
-      status TEXT,
-      estimated_hours REAL,
-      lat REAL,
-      lng REAL,
-      assigned_tech_id INTEGER,
-      scheduled_start TEXT,
-      scheduled_end TEXT,
-      notes TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS bookings (
-      id INTEGER PRIMARY KEY,
-      technician_id INTEGER,
-      order_id INTEGER,
-      start_time TEXT,
-      end_time TEXT
-    );
-    CREATE TABLE IF NOT EXISTS checklist_items (
-      id INTEGER PRIMARY KEY,
-      order_id INTEGER,
-      description TEXT,
-      completed INTEGER DEFAULT 0,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
-  `);
-
-  const row = db.prepare('SELECT COUNT(1) as c FROM customers').get();
-  if (row.c === 0) seed();
+function saveDb() {
+  ensureDir(DB_PATH);
+  const dbData = {};
+  for (const tableName in db.tables) {
+    dbData[tableName] = db.tables[tableName];
+  }
+  fs.writeFileSync(DB_PATH, JSON.stringify(dbData, null, 2));
 }
 
 function seed() {
   // Clear existing data
-  db.exec('DELETE FROM checklist_items');
-  db.exec('DELETE FROM bookings');
-  db.exec('DELETE FROM orders');
-  db.exec('DELETE FROM technicians');
-  db.exec('DELETE FROM customers');
+  alasql.exec('DROP TABLE IF EXISTS demo.checklist_items');
+  alasql.exec('DROP TABLE IF EXISTS demo.bookings');
+  alasql.exec('DROP TABLE IF EXISTS demo.orders');
+  alasql.exec('DROP TABLE IF EXISTS demo.technicians');
+  alasql.exec('DROP TABLE IF EXISTS demo.customers');
 
   // ===== KUNDER =====
-  const insertCustomer = db.prepare('INSERT INTO customers (name,address,lat,lng,postal_code,region,requires_clearance) VALUES (?,?,?,?,?,?,?)');
-  
+  alasql.exec(`
+    CREATE TABLE demo.customers (
+      id INT PRIMARY KEY,
+      name STRING,
+      address STRING,
+      lat FLOAT,
+      lng FLOAT,
+      postal_code STRING,
+      region STRING,
+      requires_clearance INT DEFAULT 0
+    )
+  `);
+
   // Bergen-området
-  insertCustomer.run('Bergen Energi', 'Åsane, Bergen', 60.435, 5.348, '5115', 'Vestland', 0);
-  insertCustomer.run('Lyse Energi', 'Fana, Bergen', 60.350, 5.300, '5221', 'Vestland', 0);
-  insertCustomer.run('Bergenshalvøens Kommunale Kraftselskap', 'Loddefjord, Bergen', 60.400, 5.250, '5124', 'Vestland', 0);
-  insertCustomer.run('Vestkanten Energi', 'Arna, Bergen', 60.410, 5.360, '5215', 'Vestland', 0);
-  
+  alasql.exec(`INSERT INTO demo.customers (id,name,address,lat,lng,postal_code,region,requires_clearance) VALUES 
+    (1, 'Bergen Energi', 'Åsane, Bergen', 60.435, 5.348, '5115', 'Vestland', 0),
+    (2, 'Lyse Energi', 'Fana, Bergen', 60.350, 5.300, '5221', 'Vestland', 0),
+    (3, 'Bergenshalvøens Kommunale Kraftselskap', 'Loddefjord, Bergen', 60.400, 5.250, '5124', 'Vestland', 0),
+    (4, 'Vestkanten Energi', 'Arna, Bergen', 60.410, 5.360, '5215', 'Vestland', 0)
+  `);
+
   // Førde-området
-  insertCustomer.run('Førde Industri', 'Førde, Sogn og Fjordane', 61.450, 5.833, '6800', 'Vestland', 0);
-  insertCustomer.run('Sogn og Fjordane Energi', 'Sande, Sogn og Fjordane', 61.500, 5.900, '6823', 'Vestland', 0);
-  insertCustomer.run('Jølster Kraft', 'Skei, Jølster', 61.550, 6.000, '6843', 'Vestland', 0);
-  
+  alasql.exec(`INSERT INTO demo.customers (id,name,address,lat,lng,postal_code,region,requires_clearance) VALUES 
+    (5, 'Førde Industri', 'Førde, Sogn og Fjordane', 61.450, 5.833, '6800', 'Vestland', 0),
+    (6, 'Sogn og Fjordane Energi', 'Sande, Sogn og Fjordane', 61.500, 5.900, '6823', 'Vestland', 0),
+    (7, 'Jølster Kraft', 'Skei, Jølster', 61.550, 6.000, '6843', 'Vestland', 0)
+  `);
+
   // Tromsø-området (sensitive kunder)
-  insertCustomer.run('Hemmeligholdt Kunde', 'Tromsø sentrum', 69.649, 18.956, '9008', 'Troms og Finnmark', 1);
-  insertCustomer.run('Statens Hemmelige Anlegg', 'Kvaløya, Tromsø', 69.680, 18.900, '9010', 'Troms og Finnmark', 1);
-  
+  alasql.exec(`INSERT INTO demo.customers (id,name,address,lat,lng,postal_code,region,requires_clearance) VALUES 
+    (8, 'Hemmeligholdt Kunde', 'Tromsø sentrum', 69.649, 18.956, '9008', 'Troms og Finnmark', 1),
+    (9, 'Statens Hemmelige Anlegg', 'Kvaløya, Tromsø', 69.680, 18.900, '9010', 'Troms og Finnmark', 1)
+  `);
+
   // Nord-Norge (større radius)
-  insertCustomer.run('Finnmark Kraft', 'Hammerfest', 70.663, 23.678, '9600', 'Finnmark', 0);
-  insertCustomer.run('Troms Kraft', 'Harstad', 68.798, 16.547, '9406', 'Troms og Finnmark', 0);
+  alasql.exec(`INSERT INTO demo.customers (id,name,address,lat,lng,postal_code,region,requires_clearance) VALUES 
+    (10, 'Finnmark Kraft', 'Hammerfest', 70.663, 23.678, '9600', 'Finnmark', 0),
+    (11, 'Troms Kraft', 'Harstad', 68.798, 16.547, '9406', 'Troms og Finnmark', 0)
+  `);
 
   // ===== TEKNIKERE =====
-  const insertTech = db.prepare('INSERT INTO technicians (name,base_lat,base_lng,skills,clearance_level) VALUES (?,?,?,?,?)');
-  
-  // Bergen-baserte teknikere
-  insertTech.run('Ola Nordmann', 60.391, 5.322, JSON.stringify(['årskontroll', 'service', 'inspection', 'trykktest']), 1);
-  insertTech.run('Kari Teknisk', 60.385, 5.332, JSON.stringify(['inspection', 'årskontroll', 'vedlikehold']), 0);
-  insertTech.run('Per Fiksit', 60.420, 5.350, JSON.stringify(['service', 'reparasjon', 'trykktest']), 1);
-  insertTech.run('Anne Service', 60.405, 5.315, JSON.stringify(['årskontroll', 'service', 'inspection']), 0);
-  
-  // Førde-baserte teknikere
-  insertTech.run('Lars Fjord', 61.440, 5.820, JSON.stringify(['årskontroll', 'inspection', 'service']), 0);
-  insertTech.run('Marte Vest', 61.460, 5.850, JSON.stringify(['service', 'vedlikehold', 'trykktest']), 1);
-  
-  // Tromsø-baserte teknikere (med clearance)
-  insertTech.run('Morten Polar', 69.650, 18.950, JSON.stringify(['årskontroll', 'service', 'sikkerhet']), 3);
-  insertTech.run('Anne Nordlys', 69.670, 18.920, JSON.stringify(['inspection', 'vedlikehold', 'trykktest']), 2);
-  insertTech.run('Knut Isfjord', 69.660, 18.940, JSON.stringify(['årskontroll', 'service', 'inspection']), 2);
+  alasql.exec(`
+    CREATE TABLE demo.technicians (
+      id INT PRIMARY KEY,
+      name STRING,
+      base_lat FLOAT,
+      base_lng FLOAT,
+      skills STRING,
+      clearance_level INT DEFAULT 0
+    )
+  `);
 
-  // ===== ORDRE (noen allerede planlagt) =====
-  const insertOrder = db.prepare('INSERT INTO orders (customer_id,type,status,estimated_hours,lat,lng,assigned_tech_id,scheduled_start,scheduled_end,notes) VALUES (?,?,?,?,?,?,?,?,?,?)');
-  
+  // Bergen-baserte teknikere
+  alasql.exec(`INSERT INTO demo.technicians (id,name,base_lat,base_lng,skills,clearance_level) VALUES 
+    (1, 'Ola Nordmann', 60.391, 5.322, '${JSON.stringify(['årskontroll', 'service', 'inspection', 'trykktest'])}', 1),
+    (2, 'Kari Teknisk', 60.385, 5.332, '${JSON.stringify(['inspection', 'årskontroll', 'vedlikehold'])}', 0),
+    (3, 'Per Fiksit', 60.420, 5.350, '${JSON.stringify(['service', 'reparasjon', 'trykktest'])}', 1),
+    (4, 'Anne Service', 60.405, 5.315, '${JSON.stringify(['årskontroll', 'service', 'inspection'])}', 0)
+  `);
+
+  // Førde-baserte teknikere
+  alasql.exec(`INSERT INTO demo.technicians (id,name,base_lat,base_lng,skills,clearance_level) VALUES 
+    (5, 'Lars Fjord', 61.440, 5.820, '${JSON.stringify(['årskontroll', 'inspection', 'service'])}', 0),
+    (6, 'Marte Vest', 61.460, 5.850, '${JSON.stringify(['service', 'vedlikehold', 'trykktest'])}', 1)
+  `);
+
+  // Tromsø-baserte teknikere (med clearance)
+  alasql.exec(`INSERT INTO demo.technicians (id,name,base_lat,base_lng,skills,clearance_level) VALUES 
+    (7, 'Morten Polar', 69.650, 18.950, '${JSON.stringify(['årskontroll', 'service', 'sikkerhet'])}', 3),
+    (8, 'Anne Nordlys', 69.670, 18.920, '${JSON.stringify(['inspection', 'vedlikehold', 'trykktest'])}', 2),
+    (9, 'Knut Isfjord', 69.660, 18.940, '${JSON.stringify(['årskontroll', 'service', 'inspection'])}', 2)
+  `);
+
+  // ===== ORDRE =====
+  alasql.exec(`
+    CREATE TABLE demo.orders (
+      id INT PRIMARY KEY,
+      customer_id INT,
+      type STRING,
+      status STRING,
+      estimated_hours FLOAT,
+      lat FLOAT,
+      lng FLOAT,
+      assigned_tech_id INT,
+      scheduled_start STRING,
+      scheduled_end STRING,
+      notes STRING
+    )
+  `);
+
   // Åpne ordre (venter på planlegging) - 12 stk
-  insertOrder.run(1, 'årskontroll', 'open', 3, 60.435, 5.348, null, null, null, 'Årlig kontroll av trykkluftsanlegg');
-  insertOrder.run(2, 'service', 'open', 2, 60.350, 5.300, null, null, null, 'Service på transformator');
-  insertOrder.run(4, 'inspection', 'open', 2.5, 60.410, 5.360, null, null, null, 'Rutineinspeksjon av elektrisk anlegg');
-  insertOrder.run(5, 'service', 'open', 3, 61.450, 5.833, null, null, null, 'Service på kraftstasjon i Førde');
-  insertOrder.run(7, 'årskontroll', 'open', 4, 61.500, 5.900, null, null, null, 'Årlig kontroll av solcelleanlegg');
-  insertOrder.run(9, 'årskontroll', 'open', 4, 69.649, 18.956, null, null, null, 'Sensitiv årskontroll - krever clearance');
-  insertOrder.run(10, 'service', 'open', 2.5, 69.680, 18.900, null, null, null, 'Service på hemmelig anlegg');
-  insertOrder.run(11, 'inspection', 'open', 3.5, 70.663, 23.678, null, null, null, 'Årlig kontroll i Finnmark');
-  insertOrder.run(12, 'trykktest', 'open', 2, 68.798, 16.547, null, null, null, 'Trykktest av rørsystem i Harstad');
-  insertOrder.run(3, 'vedlikehold', 'open', 2, 60.400, 5.250, null, null, null, 'Rutinevedlikehold på Loddefjord anlegg');
-  insertOrder.run(6, 'inspection', 'open', 2, 61.500, 5.900, null, null, null, 'Inspeksjon av Sogn og Fjordane anlegg');
-  insertOrder.run(8, 'service', 'open', 3, 69.680, 18.900, null, null, null, 'Service på Statens anlegg');
+  alasql.exec(`INSERT INTO demo.orders (id,customer_id,type,status,estimated_hours,lat,lng,assigned_tech_id,scheduled_start,scheduled_end,notes) VALUES 
+    (1, 1, 'årskontroll', 'open', 3, 60.435, 5.348, null, null, null, 'Årlig kontroll av trykkluftsanlegg'),
+    (2, 2, 'service', 'open', 2, 60.350, 5.300, null, null, null, 'Service på transformator'),
+    (3, 4, 'inspection', 'open', 2.5, 60.410, 5.360, null, null, null, 'Rutineinspeksjon av elektrisk anlegg'),
+    (4, 5, 'service', 'open', 3, 61.450, 5.833, null, null, null, 'Service på kraftstasjon i Førde'),
+    (5, 7, 'årskontroll', 'open', 4, 61.500, 5.900, null, null, null, 'Årlig kontroll av solcelleanlegg'),
+    (6, 9, 'årskontroll', 'open', 4, 69.649, 18.956, null, null, null, 'Sensitiv årskontroll - krever clearance'),
+    (7, 10, 'service', 'open', 2.5, 69.680, 18.900, null, null, null, 'Service på hemmelig anlegg'),
+    (8, 11, 'inspection', 'open', 3.5, 70.663, 23.678, null, null, null, 'Årlig kontroll i Finnmark'),
+    (9, 12, 'trykktest', 'open', 2, 68.798, 16.547, null, null, null, 'Trykktest av rørsystem i Harstad'),
+    (10, 3, 'vedlikehold', 'open', 2, 60.400, 5.250, null, null, null, 'Rutinevedlikehold på Loddefjord anlegg'),
+    (11, 6, 'inspection', 'open', 2, 61.500, 5.900, null, null, null, 'Inspeksjon av Sogn og Fjordane anlegg'),
+    (12, 8, 'service', 'open', 3, 69.680, 18.900, null, null, null, 'Service på Statens anlegg')
+  `);
 
   // Planlagte ordre (for å skape bookinger) - 6 stk
-  const orderId1 = insertOrder.run(3, 'service', 'planlagt', 2, 60.400, 5.250, 2, '2026-08-10T08:00:00Z', '2026-08-10T10:00:00Z', 'Service på kraftstasjon').lastInsertRowid;
-  const orderId2 = insertOrder.run(6, 'inspection', 'planlagt', 3, 61.500, 5.900, 5, '2026-08-10T10:00:00Z', '2026-08-10T13:00:00Z', 'Inspeksjon av solcelleanlegg').lastInsertRowid;
-  const orderId3 = insertOrder.run(8, 'årskontroll', 'planlagt', 3, 69.680, 18.900, 7, '2026-08-11T09:00:00Z', '2026-08-11T12:00:00Z', 'Årlig kontroll - sensitiv kunde').lastInsertRowid;
-  const orderId4 = insertOrder.run(1, 'trykktest', 'planlagt', 2, 60.435, 5.348, 1, '2026-08-12T13:00:00Z', '2026-08-12T15:00:00Z', 'Trykktest av rørsystem').lastInsertRowid;
-  const orderId5 = insertOrder.run(2, 'vedlikehold', 'planlagt', 1.5, 60.350, 5.300, 3, '2026-08-13T08:00:00Z', '2026-08-13T09:30:00Z', 'Rutinevedlikehold').lastInsertRowid;
-  const orderId6 = insertOrder.run(4, 'årskontroll', 'planlagt', 2.5, 60.410, 5.360, 4, '2026-08-14T10:00:00Z', '2026-08-14T12:30:00Z', 'Årlig kontroll på Arna anlegg').lastInsertRowid;
+  alasql.exec(`INSERT INTO demo.orders (id,customer_id,type,status,estimated_hours,lat,lng,assigned_tech_id,scheduled_start,scheduled_end,notes) VALUES 
+    (13, 3, 'service', 'planlagt', 2, 60.400, 5.250, 2, '2026-08-10T08:00:00Z', '2026-08-10T10:00:00Z', 'Service på kraftstasjon'),
+    (14, 6, 'inspection', 'planlagt', 3, 61.500, 5.900, 5, '2026-08-10T10:00:00Z', '2026-08-10T13:00:00Z', 'Inspeksjon av solcelleanlegg'),
+    (15, 8, 'årskontroll', 'planlagt', 3, 69.680, 18.900, 7, '2026-08-11T09:00:00Z', '2026-08-11T12:00:00Z', 'Årlig kontroll - sensitiv kunde'),
+    (16, 1, 'trykktest', 'planlagt', 2, 60.435, 5.348, 1, '2026-08-12T13:00:00Z', '2026-08-12T15:00:00Z', 'Trykktest av rørsystem'),
+    (17, 2, 'vedlikehold', 'planlagt', 1.5, 60.350, 5.300, 3, '2026-08-13T08:00:00Z', '2026-08-13T09:30:00Z', 'Rutinevedlikehold'),
+    (18, 4, 'årskontroll', 'planlagt', 2.5, 60.410, 5.360, 4, '2026-08-14T10:00:00Z', '2026-08-14T12:30:00Z', 'Årlig kontroll på Arna anlegg')
+  `);
 
   // ===== BOOKINGER (kalender for teknikere) =====
-  const insertBooking = db.prepare('INSERT INTO bookings (technician_id,order_id,start_time,end_time) VALUES (?,?,?,?)');
-  
+  alasql.exec(`
+    CREATE TABLE demo.bookings (
+      id INT PRIMARY KEY,
+      technician_id INT,
+      order_id INT,
+      start_time STRING,
+      end_time STRING
+    )
+  `);
+
   // Ola Nordmann (ID 1)
-  insertBooking.run(1, orderId4, '2026-08-12T13:00:00Z', '2026-08-12T15:00:00Z');
-  insertBooking.run(1, 1, '2026-08-15T08:00:00Z', '2026-08-15T11:00:00Z');
-  insertBooking.run(1, 5, '2026-08-18T09:00:00Z', '2026-08-18T11:00:00Z');
-  
+  alasql.exec(`INSERT INTO demo.bookings (id,technician_id,order_id,start_time,end_time) VALUES 
+    (1, 1, 16, '2026-08-12T13:00:00Z', '2026-08-12T15:00:00Z'),
+    (2, 1, 1, '2026-08-15T08:00:00Z', '2026-08-15T11:00:00Z'),
+    (3, 1, 4, '2026-08-18T09:00:00Z', '2026-08-18T11:00:00Z')
+  `);
+
   // Kari Teknisk (ID 2)
-  insertBooking.run(2, orderId1, '2026-08-10T08:00:00Z', '2026-08-10T10:00:00Z');
-  insertBooking.run(2, 2, '2026-08-14T10:00:00Z', '2026-08-14T12:00:00Z');
-  insertBooking.run(2, 8, '2026-08-17T13:00:00Z', '2026-08-17T15:00:00Z');
-  
+  alasql.exec(`INSERT INTO demo.bookings (id,technician_id,order_id,start_time,end_time) VALUES 
+    (4, 2, 13, '2026-08-10T08:00:00Z', '2026-08-10T10:00:00Z'),
+    (5, 2, 2, '2026-08-14T10:00:00Z', '2026-08-14T12:00:00Z'),
+    (6, 2, 7, '2026-08-17T13:00:00Z', '2026-08-17T15:00:00Z')
+  `);
+
   // Per Fiksit (ID 3)
-  insertBooking.run(3, orderId5, '2026-08-13T08:00:00Z', '2026-08-13T09:30:00Z');
-  insertBooking.run(3, 1, '2026-08-16T09:00:00Z', '2026-08-16T11:00:00Z');
-  insertBooking.run(3, 9, '2026-08-19T10:00:00Z', '2026-08-19T12:00:00Z');
-  
+  alasql.exec(`INSERT INTO demo.bookings (id,technician_id,order_id,start_time,end_time) VALUES 
+    (7, 3, 17, '2026-08-13T08:00:00Z', '2026-08-13T09:30:00Z'),
+    (8, 3, 1, '2026-08-16T09:00:00Z', '2026-08-16T11:00:00Z'),
+    (9, 3, 6, '2026-08-19T10:00:00Z', '2026-08-19T12:00:00Z')
+  `);
+
   // Anne Service (ID 4)
-  insertBooking.run(4, orderId6, '2026-08-14T10:00:00Z', '2026-08-14T12:30:00Z');
-  insertBooking.run(4, 4, '2026-08-17T10:00:00Z', '2026-08-17T12:00:00Z');
-  insertBooking.run(4, 7, '2026-08-20T08:00:00Z', '2026-08-20T10:00:00Z');
-  
+  alasql.exec(`INSERT INTO demo.bookings (id,technician_id,order_id,start_time,end_time) VALUES 
+    (10, 4, 18, '2026-08-14T10:00:00Z', '2026-08-14T12:30:00Z'),
+    (11, 4, 3, '2026-08-17T10:00:00Z', '2026-08-17T12:00:00Z'),
+    (12, 4, 5, '2026-08-20T08:00:00Z', '2026-08-20T10:00:00Z')
+  `);
+
   // Lars Fjord (ID 5)
-  insertBooking.run(5, orderId2, '2026-08-10T10:00:00Z', '2026-08-10T13:00:00Z');
-  insertBooking.run(5, 2, '2026-08-17T10:00:00Z', '2026-08-17T12:00:00Z');
-  insertBooking.run(5, 10, '2026-08-21T09:00:00Z', '2026-08-21T11:00:00Z');
-  
+  alasql.exec(`INSERT INTO demo.bookings (id,technician_id,order_id,start_time,end_time) VALUES 
+    (13, 5, 14, '2026-08-10T10:00:00Z', '2026-08-10T13:00:00Z'),
+    (14, 5, 2, '2026-08-17T10:00:00Z', '2026-08-17T12:00:00Z'),
+    (15, 5, 7, '2026-08-21T09:00:00Z', '2026-08-21T11:00:00Z')
+  `);
+
   // Marte Vest (ID 6)
-  insertBooking.run(6, 7, '2026-08-12T09:00:00Z', '2026-08-12T11:00:00Z');
-  insertBooking.run(6, 9, '2026-08-19T10:00:00Z', '2026-08-19T13:00:00Z');
-  
+  alasql.exec(`INSERT INTO demo.bookings (id,technician_id,order_id,start_time,end_time) VALUES 
+    (16, 6, 5, '2026-08-12T09:00:00Z', '2026-08-12T11:00:00Z'),
+    (17, 6, 6, '2026-08-19T10:00:00Z', '2026-08-19T13:00:00Z')
+  `);
+
   // Morten Polar (ID 7)
-  insertBooking.run(7, orderId3, '2026-08-11T09:00:00Z', '2026-08-11T12:00:00Z');
-  insertBooking.run(7, 9, '2026-08-18T08:00:00Z', '2026-08-18T11:00:00Z');
-  insertBooking.run(7, 12, '2026-08-22T09:00:00Z', '2026-08-22T12:00:00Z');
-  
+  alasql.exec(`INSERT INTO demo.bookings (id,technician_id,order_id,start_time,end_time) VALUES 
+    (18, 7, 15, '2026-08-11T09:00:00Z', '2026-08-11T12:00:00Z'),
+    (19, 7, 6, '2026-08-18T08:00:00Z', '2026-08-18T11:00:00Z'),
+    (20, 7, 12, '2026-08-22T09:00:00Z', '2026-08-22T12:00:00Z')
+  `);
+
   // Anne Nordlys (ID 8)
-  insertBooking.run(8, 11, '2026-08-12T09:00:00Z', '2026-08-12T11:00:00Z');
-  insertBooking.run(8, 10, '2026-08-19T10:00:00Z', '2026-08-19T13:00:00Z');
-  
+  alasql.exec(`INSERT INTO demo.bookings (id,technician_id,order_id,start_time,end_time) VALUES 
+    (21, 8, 8, '2026-08-12T09:00:00Z', '2026-08-12T11:00:00Z'),
+    (22, 8, 7, '2026-08-19T10:00:00Z', '2026-08-19T13:00:00Z')
+  `);
+
   // Knut Isfjord (ID 9)
-  insertBooking.run(9, 12, '2026-08-13T13:00:00Z', '2026-08-13T15:00:00Z');
-  insertBooking.run(9, 8, '2026-08-20T10:00:00Z', '2026-08-20T12:00:00Z');
+  alasql.exec(`INSERT INTO demo.bookings (id,technician_id,order_id,start_time,end_time) VALUES 
+    (23, 9, 12, '2026-08-13T13:00:00Z', '2026-08-13T15:00:00Z'),
+    (24, 9, 8, '2026-08-20T10:00:00Z', '2026-08-20T12:00:00Z')
+  `);
 
   // ===== SJEKKLISTER (for demo) =====
-  const insertChecklist = db.prepare('INSERT INTO checklist_items (order_id,description,completed) VALUES (?,?,?)');
-  
+  alasql.exec(`
+    CREATE TABLE demo.checklist_items (
+      id INT PRIMARY KEY,
+      order_id INT,
+      description STRING,
+      completed INT DEFAULT 0
+    )
+  `);
+
   // Sjekkliste for ordre 1 (Bergen Energi - årskontroll)
-  insertChecklist.run(1, 'Sjekk trykkluftstank for korrosjon', 0);
-  insertChecklist.run(1, 'Verifiser trykknivå', 0);
-  insertChecklist.run(1, 'Test sikkerhetsventiler', 0);
-  insertChecklist.run(1, 'Kontroller oljenivå i kompressor', 0);
-  insertChecklist.run(1, 'Sjekk tilkoblinger og slanger', 0);
-  
+  alasql.exec(`INSERT INTO demo.checklist_items (id,order_id,description,completed) VALUES 
+    (1, 1, 'Sjekk trykkluftstank for korrosjon', 0),
+    (2, 1, 'Verifiser trykknivå', 0),
+    (3, 1, 'Test sikkerhetsventiler', 0),
+    (4, 1, 'Kontroller oljenivå i kompressor', 0),
+    (5, 1, 'Sjekk tilkoblinger og slanger', 0)
+  `);
+
   // Sjekkliste for ordre 2 (Lyse Energi - service)
-  insertChecklist.run(2, 'Mål isolasjonsmotstand', 0);
-  insertChecklist.run(2, 'Sjekk tilkoblinger', 0);
-  insertChecklist.run(2, 'Rengjør kjøleflater', 1);
-  insertChecklist.run(2, 'Test nødstopp-funksjonalitet', 0);
-  
+  alasql.exec(`INSERT INTO demo.checklist_items (id,order_id,description,completed) VALUES 
+    (6, 2, 'Mål isolasjonsmotstand', 0),
+    (7, 2, 'Sjekk tilkoblinger', 0),
+    (8, 2, 'Rengjør kjøleflater', 1),
+    (9, 2, 'Test nødstopp-funksjonalitet', 0)
+  `);
+
   // Sjekkliste for ordre 5 (Førde Industri - service)
-  insertChecklist.run(5, 'Visuell inspeksjon av anlegg', 0);
-  insertChecklist.run(5, 'Sjekk temperaturmålinger', 0);
-  insertChecklist.run(5, 'Test alarmfunksjoner', 0);
-  
+  alasql.exec(`INSERT INTO demo.checklist_items (id,order_id,description,completed) VALUES 
+    (10, 4, 'Visuell inspeksjon av anlegg', 0),
+    (11, 4, 'Sjekk temperaturmålinger', 0),
+    (12, 4, 'Test alarmfunksjoner', 0)
+  `);
+
   // Sjekkliste for ordre 9 (Hemmeligholdt Kunde - sensitiv)
-  insertChecklist.run(9, 'Sikkerhetssjekk av inngangssystem', 0);
-  insertChecklist.run(9, 'Verifiser alarmfunksjonalitet', 0);
-  insertChecklist.run(9, 'Kontroller overvåkningssystem', 0);
+  alasql.exec(`INSERT INTO demo.checklist_items (id,order_id,description,completed) VALUES 
+    (13, 6, 'Sikkerhetssjekk av inngangssystem', 0),
+    (14, 6, 'Verifiser alarmfunksjonalitet', 0),
+    (15, 6, 'Kontroller overvåkningssystem', 0)
+  `);
 }
 
-init();
+// Initialize the database
+initDb().then(() => {
+  console.log('Database initialized');
+}).catch(err => {
+  console.error('Error initializing database:', err);
+});
 
 function parseISO(s) {
   return s ? new Date(s) : null;
 }
 
 function getBookingsForTech(techId) {
-  return db.prepare('SELECT * FROM bookings WHERE technician_id = ? ORDER BY start_time').all(techId).map(b => ({
+  const result = alasql.exec('SELECT * FROM demo.bookings WHERE technician_id = ? ORDER BY start_time', [techId]);
+  return result.map(b => ({
     ...b,
     start: parseISO(b.start_time),
     end: parseISO(b.end_time)
@@ -230,17 +302,19 @@ function getBookingsForTech(techId) {
 }
 
 function getChecklistForOrder(orderId) {
-  return db.prepare('SELECT * FROM checklist_items WHERE order_id = ? ORDER BY id').all(orderId);
+  return alasql.exec('SELECT * FROM demo.checklist_items WHERE order_id = ? ORDER BY id', [orderId]);
 }
 
 function createChecklistItem(orderId, description) {
-  const st = db.prepare('INSERT INTO checklist_items (order_id,description,completed) VALUES (?,?,0)');
-  const info = st.run(orderId, description);
-  return info.lastInsertRowid;
+  const result = alasql.exec('SELECT MAX(id) as maxId FROM demo.checklist_items');
+  const nextId = (result[0]?.maxId || 0) + 1;
+  alasql.exec('INSERT INTO demo.checklist_items (id,order_id,description,completed) VALUES (?,?,?,0)', [nextId, orderId, description]);
+  saveDb();
+  return nextId;
 }
 
 function getCalendarItems(role) {
-  const items = db.prepare(`
+  const result = alasql.exec(`
     SELECT b.id AS booking_id,
            o.id AS order_id,
            o.customer_id,
@@ -255,14 +329,14 @@ function getCalendarItems(role) {
            t.name AS technician_name,
            b.start_time,
            b.end_time
-    FROM bookings b
-    JOIN orders o ON o.id = b.order_id
-    JOIN customers c ON c.id = o.customer_id
-    JOIN technicians t ON t.id = b.technician_id
+    FROM demo.bookings b
+    JOIN demo.orders o ON o.id = b.order_id
+    JOIN demo.customers c ON c.id = o.customer_id
+    JOIN demo.technicians t ON t.id = b.technician_id
     ORDER BY b.start_time
-  `).all();
+  `);
 
-  return items.map(item => {
+  return result.map(item => {
     const displayName = item.requires_clearance && role !== 'manager' && role !== 'admin'
       ? '🔒 Super secret mission'
       : `${item.customer_name} (${item.type})`;
@@ -275,27 +349,29 @@ function getCalendarItems(role) {
 }
 
 function updateChecklistItem(itemId, completed) {
-  const st = db.prepare('UPDATE checklist_items SET completed = ? WHERE id = ?');
-  const info = st.run(completed ? 1 : 0, itemId);
-  return info.changes;
+  alasql.exec('UPDATE demo.checklist_items SET completed = ? WHERE id = ?', [completed ? 1 : 0, itemId]);
+  saveDb();
+  return 1;
 }
 
 function updateOrderStatus(orderId, status, assignedTechId = null, scheduledStart = null, scheduledEnd = null) {
-  let st;
   if (assignedTechId !== null && scheduledStart && scheduledEnd) {
-    st = db.prepare('UPDATE orders SET status = ?, assigned_tech_id = ?, scheduled_start = ?, scheduled_end = ? WHERE id = ?');
-    const info = st.run(status, assignedTechId, scheduledStart, scheduledEnd, orderId);
+    alasql.exec('UPDATE demo.orders SET status = ?, assigned_tech_id = ?, scheduled_start = ?, scheduled_end = ? WHERE id = ?', 
+      [status, assignedTechId, scheduledStart, scheduledEnd, orderId]);
     
     // Opprett booking hvis ordre er planlagt
     if (status === 'planlagt' && assignedTechId) {
-      const insertBooking = db.prepare('INSERT INTO bookings (technician_id, order_id, start_time, end_time) VALUES (?,?,?,?)');
-      insertBooking.run(assignedTechId, orderId, scheduledStart, scheduledEnd);
+      const result = alasql.exec('SELECT MAX(id) as maxId FROM demo.bookings');
+      const nextId = (result[0]?.maxId || 0) + 1;
+      alasql.exec('INSERT INTO demo.bookings (id,technician_id, order_id, start_time, end_time) VALUES (?,?,?,?,?)', 
+        [nextId, assignedTechId, orderId, scheduledStart, scheduledEnd]);
     }
-    return info.changes;
+    saveDb();
+    return 1;
   } else {
-    st = db.prepare('UPDATE orders SET status = ? WHERE id = ?');
-    const info = st.run(status, orderId);
-    return info.changes;
+    alasql.exec('UPDATE demo.orders SET status = ? WHERE id = ?', [status, orderId]);
+    saveDb();
+    return 1;
   }
 }
 
@@ -308,12 +384,11 @@ function updateOrderFull(orderId, updates) {
     values.push(value);
   }
   
-  fields.push('id = ?');
   values.push(orderId);
   
-  const st = db.prepare(`UPDATE orders SET ${fields.join(', ')} WHERE id = ?`);
-  const info = st.run(...values);
-  return info.changes;
+  alasql.exec(`UPDATE demo.orders SET ${fields.join(', ')} WHERE id = ?`, values);
+  saveDb();
+  return 1;
 }
 
 function findGaps(bookings, dayStart, dayEnd, neededHours) {
@@ -342,13 +417,16 @@ function findGaps(bookings, dayStart, dayEnd, neededHours) {
 
 // Forbedret suggestForOrder med bedre scoring og korridor-logikk
 function suggestForOrder(orderId) {
-  const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+  const orderResult = alasql.exec('SELECT * FROM demo.orders WHERE id = ?', [orderId]);
+  const order = orderResult[0];
   if (!order) return [];
 
   // Hent kundeinfo for å sjekke clearance
-  const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(order.customer_id);
+  const customerResult = alasql.exec('SELECT * FROM demo.customers WHERE id = ?', [order.customer_id]);
+  const customer = customerResult[0];
   
-  const techs = db.prepare('SELECT * FROM technicians').all().filter(t => {
+  const techsResult = alasql.exec('SELECT * FROM demo.technicians');
+  const techs = techsResult.filter(t => {
     try {
       const skills = JSON.parse(t.skills || '[]');
       // Sjekk om tekniker har nødvendig kompetanse
@@ -379,7 +457,8 @@ function suggestForOrder(orderId) {
         const nextBooking = bookings.find(b => b.start >= g.end);
         
         // Get customer location for this order
-        const orderCustomer = db.prepare('SELECT lat, lng FROM customers WHERE id = ?').get(order.customer_id);
+        const orderCustomerResult = alasql.exec('SELECT lat, lng FROM demo.customers WHERE id = ?', [order.customer_id]);
+        const orderCustomer = orderCustomerResult[0];
         
         const slotInfo = calculateSlotScore({
           tech,
@@ -420,15 +499,25 @@ function suggestForOrder(orderId) {
 
 module.exports = {
   db,
-  getCustomers: () => db.prepare('SELECT * FROM customers').all(),
-  getCustomerById: (id) => db.prepare('SELECT * FROM customers WHERE id = ?').get(id),
-  createCustomer: ({ name, address, lat, lng, postal_code, region, requires_clearance }) => {
-    const st = db.prepare('INSERT INTO customers (name,address,lat,lng,postal_code,region,requires_clearance) VALUES (?,?,?,?,?,?,?)');
-    const info = st.run(name, address, lat || null, lng || null, postal_code || null, region || null, requires_clearance ? 1 : 0);
-    return info.lastInsertRowid;
+  initDb,
+  getCustomers: () => alasql.exec('SELECT * FROM demo.customers'),
+  getCustomerById: (id) => {
+    const result = alasql.exec('SELECT * FROM demo.customers WHERE id = ?', [id]);
+    return result[0] || null;
   },
-  getTechnicians: () => db.prepare('SELECT * FROM technicians').all(),
-  getTechnicianById: (id) => db.prepare('SELECT * FROM technicians WHERE id = ?').get(id),
+  createCustomer: ({ name, address, lat, lng, postal_code, region, requires_clearance }) => {
+    const result = alasql.exec('SELECT MAX(id) as maxId FROM demo.customers');
+    const nextId = (result[0]?.maxId || 0) + 1;
+    alasql.exec('INSERT INTO demo.customers (id,name,address,lat,lng,postal_code,region,requires_clearance) VALUES (?,?,?,?,?,?,?,?)', 
+      [nextId, name, address, lat || null, lng || null, postal_code || null, region || null, requires_clearance ? 1 : 0]);
+    saveDb();
+    return nextId;
+  },
+  getTechnicians: () => alasql.exec('SELECT * FROM demo.technicians'),
+  getTechnicianById: (id) => {
+    const result = alasql.exec('SELECT * FROM demo.technicians WHERE id = ?', [id]);
+    return result[0] || null;
+  },
   getBookingsForTech,
   getChecklistForOrder,
   createChecklistItem,
@@ -436,27 +525,34 @@ module.exports = {
   updateOrderStatus,
   updateOrderFull,
   getCalendarItems,
-  getOrders: () => db.prepare('SELECT * FROM orders').all(),
-  getOrderById: (id) => db.prepare('SELECT * FROM orders WHERE id = ?').get(id),
+  getOrders: () => alasql.exec('SELECT * FROM demo.orders'),
+  getOrderById: (id) => {
+    const result = alasql.exec('SELECT * FROM demo.orders WHERE id = ?', [id]);
+    return result[0] || null;
+  },
   createOrder: ({ customer_id, type, estimated_hours, lat, lng, assigned_tech_id, notes }) => {
     let latv = lat, lngv = lng;
     if ((!latv || !lngv) && customer_id) {
-      const c = db.prepare('SELECT lat,lng FROM customers WHERE id = ?').get(customer_id);
-      if (c) { latv = latv || c.lat; lngv = lngv || c.lng }
+      const c = alasql.exec('SELECT lat,lng FROM demo.customers WHERE id = ?', [customer_id]);
+      if (c[0]) { latv = latv || c[0].lat; lngv = lngv || c[0].lng }
     }
-    const st = db.prepare('INSERT INTO orders (customer_id,type,status,estimated_hours,lat,lng,assigned_tech_id,notes) VALUES (?,?,?,?,?,?,?,?)');
-    const info = st.run(customer_id, type, 'open', estimated_hours || 1, latv, lngv, assigned_tech_id || null, notes || null);
-    return info.lastInsertRowid;
+    const result = alasql.exec('SELECT MAX(id) as maxId FROM demo.orders');
+    const nextId = (result[0]?.maxId || 0) + 1;
+    alasql.exec('INSERT INTO demo.orders (id,customer_id,type,status,estimated_hours,lat,lng,assigned_tech_id,notes) VALUES (?,?,?,?,?,?,?,?,?)', 
+      [nextId, customer_id, type, 'open', estimated_hours || 1, latv, lngv, assigned_tech_id || null, notes || null]);
+    saveDb();
+    return nextId;
   },
   suggestForOrder,
   // Reset database for demo
   resetDemoData: () => {
-    db.exec('DELETE FROM checklist_items');
-    db.exec('DELETE FROM bookings');
-    db.exec('DELETE FROM orders');
-    db.exec('DELETE FROM technicians');
-    db.exec('DELETE FROM customers');
+    alasql.exec('DROP TABLE IF EXISTS demo.checklist_items');
+    alasql.exec('DROP TABLE IF EXISTS demo.bookings');
+    alasql.exec('DROP TABLE IF EXISTS demo.orders');
+    alasql.exec('DROP TABLE IF EXISTS demo.technicians');
+    alasql.exec('DROP TABLE IF EXISTS demo.customers');
     seed();
+    saveDb();
     return { success: true, message: 'Demo data reset' };
   }
 };
