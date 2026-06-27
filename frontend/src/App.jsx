@@ -5,15 +5,30 @@ import OrderForm from './components/OrderForm';
 import TechnicianView from './components/TechnicianView';
 import CalendarView from './components/CalendarView';
 import CustomerDetail from './components/CustomerDetail';
+import OrdersTab from './components/OrdersTab';
+import CustomerSearchTab from './components/CustomerSearchTab';
+import DeviationsTab from './components/DeviationsTab';
+import UsersTab from './components/UsersTab';
 
 export default function App() {
   const [customers, setCustomers] = React.useState([]);
   const [orders, setOrders] = React.useState([]);
   const [technicians, setTechnicians] = React.useState([]);
   const [selectedCustomer, setSelectedCustomer] = React.useState(null);
+  const [selectedOrder, setSelectedOrder] = React.useState(null);
   const [activeTech, setActiveTech] = React.useState(null);
   const [role, setRole] = React.useState('coordinator');
   const [loading, setLoading] = React.useState(true);
+  const [activeTab, setActiveTab] = React.useState('orders');
+  const [recentCustomers, setRecentCustomers] = React.useState([]);
+
+  // Tab definisjoner
+  const tabs = [
+    { id: 'orders', label: 'Ordrer', icon: '📋' },
+    { id: 'customers', label: 'Kunder', icon: '🏢' },
+    { id: 'deviations', label: 'Avvik', icon: '⚠️' },
+    { id: 'users', label: 'Brukere', icon: '👥' }
+  ];
 
   React.useEffect(() => {
     const fetchData = async () => {
@@ -74,11 +89,32 @@ export default function App() {
           setCustomers(customersData);
           setOrders(ordersData);
           setTechnicians(techniciansData);
+          setSelectedCustomer(null);
+          setSelectedOrder(null);
+          setRecentCustomers([]);
         }
       } catch (error) {
         toast.error('Feil ved nullstilling av data');
       }
     }
+  };
+
+  // Oppdater nylige kunder når en kunde velges
+  const handleCustomerSelect = (customer) => {
+    setSelectedCustomer(customer);
+    setActiveTab('customers');
+    
+    // Oppdater nylige kunder (maks 5, unike)
+    setRecentCustomers(prev => {
+      const filtered = prev.filter(c => c.id !== customer.id);
+      return [customer, ...filtered].slice(0, 5);
+    });
+  };
+
+  // Lukk detaljvisning
+  const handleCloseDetail = () => {
+    setSelectedCustomer(null);
+    setSelectedOrder(null);
   };
 
   const getStatusColor = (status) => {
@@ -113,7 +149,7 @@ export default function App() {
     <div className="flex h-screen bg-gray-50 font-sans">
       <Toaster position="top-center" />
 
-      {/* Sidebar */}
+      {/* Sidebar - Nylige kunder */}
       <div className="w-72 bg-white border-r flex flex-col">
         <div className="p-6 border-b bg-gradient-to-br from-[#520000] to-[#3a0000]">
           <h1 className="text-2xl font-bold text-white">Nortronik AnKa</h1>
@@ -122,21 +158,20 @@ export default function App() {
 
         <div className="p-4 flex-1 overflow-auto">
           <div className="flex items-center justify-between mb-3">
-            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Kunder</div>
-            <span className="text-xs bg-gray-100 px-2 py-1 rounded-full text-gray-600">{customers.length}</span>
+            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Nylige kunder</div>
           </div>
           
-          {customers.length === 0 && (
+          {recentCustomers.length === 0 && (
             <div className="px-3 py-2 text-sm text-gray-400 text-center">
-              Ingen kunder funnet
+              Ingen nylige kunder
             </div>
           )}
 
           <div className="space-y-1">
-            {customers.map((customer) => (
+            {recentCustomers.map((customer) => (
               <div
                 key={customer.id}
-                onClick={() => setSelectedCustomer(customer)}
+                onClick={() => handleCustomerSelect(customer)}
                 className={`px-4 py-3 rounded-xl cursor-pointer transition-all border-2 ${
                   selectedCustomer?.id === customer.id 
                     ? 'bg-[#520000] text-white font-medium border-[#520000]' 
@@ -165,13 +200,25 @@ export default function App() {
         {/* Top bar */}
         <div className="h-14 border-b bg-white flex items-center justify-between px-6 shadow-sm">
           <div className="flex items-center gap-4">
-            <div className="text-lg font-semibold text-gray-800">
-              {selectedCustomer ? (
-                <span className="flex items-center gap-2">
-                  {selectedCustomer.requires_clearance && <span>🔒</span>}
-                  {selectedCustomer.name}
-                </span>
-              ) : 'Oversikt'}
+            {/* Tab Navigation */}
+            <div className="flex gap-1">
+              {tabs.map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    setSelectedCustomer(null);
+                    setSelectedOrder(null);
+                  }}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    activeTab === tab.id
+                      ? 'bg-[#520000] text-white'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  {tab.icon} {tab.label}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -181,7 +228,7 @@ export default function App() {
               onClick={handleResetDemo}
               className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-600 transition-colors"
             >
-              🔄 Nullstill Demo
+              🗑️ Nullstill Demo
             </button>
             
             <select 
@@ -199,34 +246,148 @@ export default function App() {
 
         {/* Content Area */}
         <div className="flex-1 overflow-auto p-6 bg-gray-50">
-          {!selectedCustomer ? (
-            <div className="max-w-2xl mx-auto mt-16 text-center">
-              <div className="text-8xl mb-6">📟️</div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-4">Velkommen til Nortronik AnKa</h2>
-              <p className="text-gray-600 text-lg mb-8">
-                Velg en kunde fra listen til venstre for å se ordre og planlegge arbeid.
-              </p>
-              
-              {/* Quick stats */}
-              <div className="grid grid-cols-3 gap-4 max-w-md mx-auto">
-                <div className="bg-white p-4 rounded-2xl shadow border">
-                  <div className="text-2xl font-bold text-[#520000]">{customers.length}</div>
-                  <div className="text-sm text-gray-500">Kunder</div>
+          {/* Tab Content */}
+          {activeTab === 'orders' && !selectedOrder && (
+            <OrdersTab
+              orders={orders}
+              technicians={technicians}
+              customers={customers}
+              onOrderSelect={(order) => {
+                setSelectedOrder(order);
+                // Finn tilhørende kunde
+                const customer = customers.find(c => c.id === order.customer_id);
+                if (customer) {
+                  setSelectedCustomer(customer);
+                }
+              }}
+              role={role}
+            />
+          )}
+
+          {activeTab === 'customers' && !selectedCustomer && (
+            <CustomerSearchTab
+              customers={customers}
+              onCustomerSelect={handleCustomerSelect}
+              role={role}
+            />
+          )}
+
+          {activeTab === 'deviations' && (
+            <DeviationsTab
+              orders={orders}
+              technicians={technicians}
+              customers={customers}
+              role={role}
+            />
+          )}
+
+          {activeTab === 'users' && (
+            <UsersTab
+              technicians={technicians}
+              role={role}
+            />
+          )}
+
+          {/* Order Detail Modal */}
+          {selectedOrder && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-auto">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-xl font-bold text-[#520000]">
+                    Ordre #{selectedOrder.id}
+                  </h2>
+                  <button
+                    onClick={() => setSelectedOrder(null)}
+                    className="text-gray-400 hover:text-gray-600 text-2xl"
+                  >
+                    ×
+                  </button>
                 </div>
-                <div className="bg-white p-4 rounded-2xl shadow border">
-                  <div className="text-2xl font-bold text-green-600">{technicians.length}</div>
-                  <div className="text-sm text-gray-500">Teknikere</div>
-                </div>
-                <div className="bg-white p-4 rounded-2xl shadow border">
-                  <div className="text-2xl font-bold text-purple-600">{orders.length}</div>
-                  <div className="text-sm text-gray-500">Ordrer</div>
+                
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <div className="text-sm text-gray-500 uppercase tracking-wider">Type</div>
+                      <div className="font-medium">{selectedOrder.type}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500 uppercase tracking-wider">Status</div>
+                      <span className={`inline-block px-3 py-1 text-xs rounded-full ${getStatusColor(selectedOrder.status)}`}>
+                        {selectedOrder.status}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <div className="text-sm text-gray-500 uppercase tracking-wider">Kunde</div>
+                      <div className="font-medium">
+                        {customers.find(c => c.id === selectedOrder.customer_id)?.name || 'Ukjent'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500 uppercase tracking-wider">Tekniker</div>
+                      <div className="font-medium">
+                        {technicians.find(t => t.id === selectedOrder.assigned_tech_id)?.name || 'Ikke tildelt'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <div className="text-sm text-gray-500 uppercase tracking-wider">Estimert tid</div>
+                      <div className="font-medium">{selectedOrder.estimated_hours} timer</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500 uppercase tracking-wider">Lokasjon</div>
+                      <div className="font-medium">
+                        {selectedOrder.lat?.toFixed(4)}, {selectedOrder.lng?.toFixed(4)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {selectedOrder.scheduled_start && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <div className="text-sm text-gray-500 uppercase tracking-wider">Planlagt start</div>
+                        <div className="font-medium">
+                          {new Date(selectedOrder.scheduled_start).toLocaleString('nb-NO')}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-500 uppercase tracking-wider">Planlagt slutt</div>
+                        <div className="font-medium">
+                          {new Date(selectedOrder.scheduled_end).toLocaleString('nb-NO')}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedOrder.notes && (
+                    <div>
+                      <div className="text-sm text-gray-500 uppercase tracking-wider">Notater</div>
+                      <div className="font-medium">{selectedOrder.notes}</div>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 pt-4">
+                    <button
+                      onClick={() => setSelectedOrder(null)}
+                      className="flex-1 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors"
+                    >
+                      Lukk
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
-          ) : (
+          )}
+
+          {/* Customer Detail - Vises i hovedvinduet */}
+          {selectedCustomer && !selectedOrder && (
             <CustomerDetail
               customer={selectedCustomer}
-              orders={orders}
+              orders={orders.filter(o => o.customer_id === selectedCustomer.id)}
               technicians={technicians}
               onBack={() => setSelectedCustomer(null)}
               onOrderAction={refreshOrders}
