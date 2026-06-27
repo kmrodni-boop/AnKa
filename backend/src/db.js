@@ -1,7 +1,7 @@
 const alasql = require('alasql');
 const fs = require('fs');
 const path = require('path');
-const { calculateSlotScore } = require('./utils/scoring');
+const { calculateSlotScore, doTimeSlotsOverlap } = require('./utils/scoring');
 
 const DB_PATH = path.join(__dirname, '..', '..', 'data', 'demo.db');
 
@@ -375,8 +375,41 @@ function updateChecklistItem(itemId, completed) {
   return 1;
 }
 
+// Valider at en booking ikke overlapper med eksisterende bookinger
+function validateBooking(technicianId, startTime, endTime, excludeBookingId = null) {
+  const bookings = getBookingsForTech(technicianId);
+  const start = new Date(startTime);
+  const end = new Date(endTime);
+  
+  // Sjekk om start er før end
+  if (start >= end) {
+    return { valid: false, reason: 'Starttid må være før sluttid' };
+  }
+  
+  // Sjekk overlap med eksisterende bookinger
+  for (const booking of bookings) {
+    if (excludeBookingId && booking.id === excludeBookingId) continue;
+    
+    if (doTimeSlotsOverlap(booking.start, booking.end, start, end)) {
+      return { 
+        valid: false, 
+        reason: `Overlapper med booking ID ${booking.id} (${booking.start_time} - ${booking.end_time})` 
+      };
+    }
+  }
+  
+  return { valid: true, reason: 'OK' };
+}
+
+// Forbedret updateOrderStatus med validering
 function updateOrderStatus(orderId, status, assignedTechId = null, scheduledStart = null, scheduledEnd = null) {
   if (assignedTechId !== null && scheduledStart && scheduledEnd) {
+    // Valider booking før opprettelse
+    const validation = validateBooking(assignedTechId, scheduledStart, scheduledEnd);
+    if (!validation.valid) {
+      throw new Error(`Kan ikke opprette booking: ${validation.reason}`);
+    }
+    
     alasql.exec('UPDATE demo.orders SET status = ?, assigned_tech_id = ?, scheduled_start = ?, scheduled_end = ? WHERE id = ?', 
       [status, assignedTechId, scheduledStart, scheduledEnd, orderId]);
     
@@ -396,6 +429,81 @@ function updateOrderStatus(orderId, status, assignedTechId = null, scheduledStar
   }
 }
 
+// Opprett booking direkte (med validering)
+function createBooking(technicianId, orderId, startTime, endTime) {
+  const validation = validateBooking(technicianId, startTime, endTime);
+  if (!validation.valid) {
+    throw new Error(`Kan ikke opprette booking: ${validation.reason}`);
+  }
+  
+  const result = alasql.exec('SELECT MAX(id) as maxId FROM demo.bookings');
+  const nextId = (result[0]?.maxId || 0) + 1;
+  
+  alasql.exec('INSERT INTO demo.bookings (id,technician_id, order_id, start_time, end_time) VALUES (?,?,?,?,?)', 
+    [nextId, technicianId, orderId, startTime, endTime]);
+  
+  // Oppdater ordre status
+  alasql.exec('UPDATE demo.orders SET status = ?, assigned_tech_id = ?, scheduled_start = ?, scheduled_end = ? WHERE id = ?', 
+    ['planlagt', technicianId, startTime, endTime, orderId]);
+  
+  saveDb();
+  return nextId;
+}
+
+// Oppdater booking (med validering)
+function updateBooking(bookingId, updates) {
+  const existingBooking = alasql.exec('SELECT * FROM demo.bookings WHERE id = ?', [bookingId]);
+  if (!existingBooking[0]) {
+    throw new Error(`Booking ID ${bookingId} finnes ikke`);
+  }
+  
+  const { technician_id, start_time, end_time } = existingBooking[0];
+  const newStartTime = updates.start_time || start_time;
+  const newEndTime = updates.end_time || end_time;
+  const newTechnicianId = updates.technician_id || technician_id;
+  
+  // Valider ny booking
+  const validation = validateBooking(newTechnicianId, newStartTime, newEndTime, bookingId);
+  if (!validation.valid) {
+    throw new Error(`Kan ikke oppdatere booking: ${validation.reason}`);
+  }
+  
+  // Bygg SQL update
+  const fields = [];
+  const values = [];
+  
+  for (const [key, value] of Object.entries(updates)) {
+    fields.push(`${key} = ?`);
+    values.push(value);
+  }
+  
+  values.push(bookingId);
+  
+  alasql.exec(`UPDATE demo.bookings SET ${fields.join(', ')} WHERE id = ?`, values);
+  saveDb();
+  return 1;
+}
+
+// Slett booking
+function deleteBooking(bookingId) {
+  const booking = alasql.exec('SELECT * FROM demo.bookings WHERE id = ?', [bookingId]);
+  if (!booking[0]) {
+    throw new Error(`Booking ID ${bookingId} finnes ikke`);
+  }
+  
+  const { order_id } = booking[0];
+  
+  // Slett booking
+  alasql.exec('DELETE FROM demo.bookings WHERE id = ?', [bookingId]);
+  
+  // Oppdater ordre status tilbake til 'open'
+  alasql.exec('UPDATE demo.orders SET status = ?, assigned_tech_id = ?, scheduled_start = ?, scheduled_end = ? WHERE id = ?', 
+    ['open', null, null, null, order_id]);
+  
+  saveDb();
+  return 1;
+}
+
 function updateOrderFull(orderId, updates) {
   const fields = [];
   const values = [];
@@ -412,37 +520,77 @@ function updateOrderFull(orderId, updates) {
   return 1;
 }
 
-function findGaps(bookings, dayStart, dayEnd, neededHours) {
+function findGaps(bookings, dayStart, dayEnd, neededHours, minBufferMinutes = 30) {
   const neededMs = neededHours * 3600 * 1000;
+  const bufferMs = minBufferMinutes * 60 * 1000;
+  
+  // Filter bookings som overlapper med perioden
   const intervals = bookings
     .map(b => ({ start: b.start, end: b.end }))
     .filter(i => i.end > dayStart && i.start < dayEnd)
-    .sort((a,b)=>a.start-b.start);
+    .sort((a,b) => a.start - b.start);
 
   const gaps = [];
   let cursor = new Date(dayStart);
 
   for (const iv of intervals) {
-    if (iv.start - cursor >= neededMs) {
-      gaps.push({ start: new Date(cursor), end: new Date(cursor.getTime() + neededMs) });
+    // Sjekk om det er plass til jobb + buffer
+    const availableTime = iv.start - cursor;
+    if (availableTime >= neededMs + bufferMs) {
+      gaps.push({ 
+        start: new Date(cursor), 
+        end: new Date(cursor.getTime() + neededMs),
+        nextStart: iv.start,
+        hasBuffer: true
+      });
+    } else if (availableTime >= neededMs) {
+      // Plass til jobb, men ikke full buffer
+      gaps.push({ 
+        start: new Date(cursor), 
+        end: new Date(cursor.getTime() + neededMs),
+        nextStart: iv.start,
+        hasBuffer: false
+      });
     }
+    
+    // Oppdater cursor til slutten av current booking
     if (iv.end > cursor) cursor = new Date(iv.end);
   }
 
-  if (dayEnd - cursor >= neededMs) {
-    gaps.push({ start: new Date(cursor), end: new Date(cursor.getTime() + neededMs) });
+  // Sjekk siste gap
+  const lastGapTime = dayEnd - cursor;
+  if (lastGapTime >= neededMs + bufferMs) {
+    gaps.push({ 
+      start: new Date(cursor), 
+      end: new Date(cursor.getTime() + neededMs),
+      hasBuffer: true
+    });
+  } else if (lastGapTime >= neededMs) {
+    gaps.push({ 
+      start: new Date(cursor), 
+      end: new Date(cursor.getTime() + neededMs),
+      hasBuffer: false
+    });
   }
 
   return gaps;
 }
 
-// Forbedret suggestForOrder med bedre scoring og korridor-logikk
-function suggestForOrder(orderId) {
+// Forbedret suggestForOrder med bedre scoring, korridor-logikk og dynamisk horisont
+function suggestForOrder(orderId, options = {}) {
+  const {
+    horizonDays = null, // null = auto (basert på prioritet)
+    priorityLevel = 'normal', // 'low', 'normal', 'high', 'urgent'
+    workDayStartHour = 6, // Fleksibel starttid (default 06:00)
+    workDayEndHour = 20,   // Fleksibel sluttid (default 20:00)
+    maxSuggestions = 8
+  } = options;
+
   const orderResult = alasql.exec('SELECT * FROM demo.orders WHERE id = ?', [orderId]);
   const order = orderResult[0];
   if (!order) return [];
 
-  // Hent kundeinfo for å sjekke clearance
+  // Hent kundeinfo for å sjekke clearance og region
   const customerResult = alasql.exec('SELECT * FROM demo.customers WHERE id = ?', [order.customer_id]);
   const customer = customerResult[0];
   
@@ -459,16 +607,30 @@ function suggestForOrder(orderId) {
   });
 
   const now = new Date();
-  const horizonDays = 10; // Se 10 dager frem
+  
+  // Dynamisk horisont basert på prioritet
+  const effectiveHorizonDays = horizonDays !== null 
+    ? horizonDays 
+    : (() => {
+        switch(priorityLevel) {
+          case 'urgent': return 3;  // 3 dager for hastejobber
+          case 'high': return 5;    // 5 dager for høye prioriteringer
+          case 'low': return 14;    // 14 dager for lave prioriteringer
+          default: return 10;      // 10 dager for normal
+        }
+      })();
+
   const suggestions = [];
 
   for (const tech of techs) {
     const bookings = getBookingsForTech(tech.id);
 
-    for (let d = 0; d < horizonDays; d++) {
+    for (let d = 0; d < effectiveHorizonDays; d++) {
       const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() + d);
-      const dayStart = new Date(day); dayStart.setHours(7, 0, 0, 0); // Start kl 07
-      const dayEnd = new Date(day); dayEnd.setHours(17, 0, 0, 0);   // Slutt kl 17
+      const dayStart = new Date(day); 
+      dayStart.setHours(workDayStartHour, 0, 0, 0);
+      const dayEnd = new Date(day); 
+      dayEnd.setHours(workDayEndHour, 0, 0, 0);
 
       const gaps = findGaps(bookings, dayStart, dayEnd, order.estimated_hours || 2);
 
@@ -478,8 +640,15 @@ function suggestForOrder(orderId) {
         const nextBooking = bookings.find(b => b.start >= g.end);
         
         // Get customer location for this order
-        const orderCustomerResult = alasql.exec('SELECT lat, lng FROM demo.customers WHERE id = ?', [order.customer_id]);
+        const orderCustomerResult = alasql.exec('SELECT lat, lng, region FROM demo.customers WHERE id = ?', [order.customer_id]);
         const orderCustomer = orderCustomerResult[0];
+        
+        // Valider at gapet ikke overlapper med eksisterende bookinger
+        const hasConflict = bookings.some(b => 
+          b.id !== order.id && doTimeSlotsOverlap(b.start, b.end, g.start, g.end)
+        );
+        
+        if (hasConflict) continue;
         
         const slotInfo = calculateSlotScore({
           tech,
@@ -489,33 +658,49 @@ function suggestForOrder(orderId) {
             prevLat: prevBooking ? orderCustomer?.lat : tech.base_lat,
             prevLng: prevBooking ? orderCustomer?.lng : tech.base_lng,
             nextLat: nextBooking ? orderCustomer?.lat : tech.base_lat,
-            nextLng: nextBooking ? orderCustomer?.lng : tech.base_lng
+            nextLng: nextBooking ? orderCustomer?.lng : tech.base_lng,
+            nextStart: g.nextStart
           },
           newJob: {
             lat: order.lat,
             lng: order.lng,
             dueDate: new Date(now.getTime() + 7 * 24 * 3600 * 1000),
-            postal: customer?.postal_code
+            postal: customer?.postal_code,
+            region: customer?.region,
+            estimated_hours: order.estimated_hours
           },
-          existingBookings: bookings
+          existingBookings: bookings,
+          priorityLevel
         });
 
         suggestions.push({
           technician: tech,
+          technicianId: tech.id,
           start: g.start.toISOString(),
           end: g.end.toISOString(),
           score: slotInfo.score,
           reason: slotInfo.reason,
           travelTimeMinutes: slotInfo.travelTimeMinutes,
-          travelDistanceKm: slotInfo.travelDistanceKm
+          travelDistanceKm: slotInfo.travelDistanceKm,
+          bufferMinutes: slotInfo.bufferMinutes || 0,
+          hasBuffer: g.hasBuffer || false,
+          priorityLevel
         });
       }
     }
   }
 
   return suggestions
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 8); // Returner opp til 8 forslag
+    .sort((a, b) => {
+      // Primær sortering: score (høyest først)
+      if (b.score !== a.score) return b.score - a.score;
+      // Sekundær: reisetid (lavest først)
+      if (a.travelTimeMinutes !== b.travelTimeMinutes) 
+        return a.travelTimeMinutes - b.travelTimeMinutes;
+      // Tersier: buffer (størst først)
+      return b.bufferMinutes - a.bufferMinutes;
+    })
+    .slice(0, maxSuggestions);
 }
 
 module.exports = {
@@ -565,6 +750,10 @@ module.exports = {
     return nextId;
   },
   suggestForOrder,
+  validateBooking,
+  createBooking,
+  updateBooking,
+  deleteBooking,
   // Reset database for demo
   resetDemoData: () => {
     alasql.exec('DROP TABLE IF EXISTS demo.checklist_items');
