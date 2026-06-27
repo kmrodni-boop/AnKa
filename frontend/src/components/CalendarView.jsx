@@ -1,41 +1,112 @@
-import React from 'react'
+import React from 'react';
 
-export default function CalendarView({ role }){
-  const [items, setItems] = React.useState([])
-  const [loading, setLoading] = React.useState(false)
+export default function CalendarView({ role }) {
+  const [items, setItems] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
 
-  React.useEffect(()=>{
-    setLoading(true)
-    fetch(`/api/calendar?role=${encodeURIComponent(role)}`)
-      .then(r=>r.json())
-      .then(data=>{
-        setItems(data)
-        setLoading(false)
-      })
-  },[role])
+  React.useEffect(() => {
+    const fetchCalendar = async () => {
+      try {
+        const res = await fetch(`/api/calendar?role=${role}`);
+        const data = await res.json();
+        setItems(data);
+      } catch (error) {
+        console.error('Error fetching calendar:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchCalendar();
+  }, [role]);
 
-  const grouped = items.reduce((acc, item) => {
-    const date = item.start_time ? item.start_time.slice(0,10) : 'Unscheduled'
-    if (!acc[date]) acc[date] = []
-    acc[date].push(item)
-    return acc
-  }, {})
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('nb-NO', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short'
+    });
+  };
+
+  const formatTime = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  if (loading) {
+    return (
+      <div className="p-4 text-center text-gray-500">
+        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+      </div>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <div className="p-4 text-center text-gray-500">
+        <div className="text-2xl mb-2">📅</div>
+        <p>Ingen bookinger funnet</p>
+      </div>
+    );
+  }
+
+  // Group by date
+  const groupedByDate = items.reduce((acc, item) => {
+    const date = new Date(item.start_time).toLocaleDateString('nb-NO', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long'
+    });
+    if (!acc[date]) acc[date] = [];
+    acc[date].push(item);
+    return acc;
+  }, {});
 
   return (
-    React.createElement('div', { style: { border: '1px solid #ccc', padding: 12, borderRadius: 6, marginTop: 20 } },
-      React.createElement('h3', null, 'Calendar View'),
-      React.createElement('p', { style: { margin: '6px 0 12px' } }, `Role: ${role}`),
-      loading ? React.createElement('div', null, 'Loading calendar...') :
-      Object.keys(grouped).sort().map(date =>
-        React.createElement('div', { key: date, style: { marginBottom: 12 } },
-          React.createElement('strong', null, date),
-          React.createElement('ul', null, grouped[date].map(item => React.createElement('li', { key: item.booking_id || item.order_id },
-            React.createElement('div', null, React.createElement('strong', null, item.display_name)),
-            React.createElement('div', null, `${item.start_time || 'unscheduled'} → ${item.end_time || 'n/a'}`),
-            React.createElement('div', null, `Tech ${item.technician_id || 'unassigned'} • status ${item.status}`)
-          )))
-        )
-      )
-    )
-  )
+    <div className="space-y-4 max-h-[400px] overflow-auto">
+      {Object.entries(groupedByDate).map(([date, dateItems]) => (
+        <div key={date} className="bg-white border rounded-xl p-4 shadow-sm">
+          <div className="font-semibold text-gray-900 mb-3 border-b pb-2">{date}</div>
+          <div className="space-y-2">
+            {dateItems.map((item) => (
+              <div 
+                key={item.booking_id}
+                className={`p-3 rounded-lg text-sm transition-colors ${
+                  item.masked 
+                    ? 'bg-gray-100 border border-gray-200' 
+                    : 'bg-blue-50 border border-blue-100'
+                }`}
+              >
+                <div className="flex justify-between items-center">
+                  <div>
+                    <div className="font-medium text-gray-900 flex items-center gap-1">
+                      {item.masked ? (
+                        <span className="text-orange-600">🔒 {item.display_name}</span>
+                      ) : (
+                        <span className="text-blue-700">{item.display_name}</span>
+                      )}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {item.technician_name}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-gray-600">
+                      {formatTime(item.start_time)} – {formatTime(item.end_time)}
+                    </div>
+                  </div>
+                </div>
+                
+                {item.masked && role !== 'manager' && role !== 'admin' && (
+                  <div className="text-xs text-orange-500 mt-1">
+                    Krever høyere klarering for full visning
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }

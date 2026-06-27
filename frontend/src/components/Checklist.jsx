@@ -1,63 +1,189 @@
-import React from 'react'
+import React from 'react';
+import { toast } from 'react-hot-toast';
 
-export default function Checklist({ orderId }){
-  const [items, setItems] = React.useState([])
-  const [text, setText] = React.useState('')
-  const [review, setReview] = React.useState(null)
-  const [loading, setLoading] = React.useState(false)
+export default function Checklist({ orderId, onReviewRequested }) {
+  const [items, setItems] = React.useState([]);
+  const [newItem, setNewItem] = React.useState('');
+  const [loading, setLoading] = React.useState(true);
 
-  React.useEffect(()=>{
-    if (!orderId) return
-    fetch(`/api/orders/${orderId}/checklist`).then(r=>r.json()).then(data=>{
-      setItems(data)
-      setReview(null)
-    })
-  },[orderId])
+  React.useEffect(() => {
+    const fetchChecklist = async () => {
+      try {
+        const res = await fetch(`/api/orders/${orderId}/checklist`);
+        const data = await res.json();
+        setItems(data);
+      } catch (error) {
+        toast.error('Feil ved lasting av sjekkliste');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchChecklist();
+  }, [orderId]);
 
-  const add = async (e)=>{
-    e.preventDefault()
-    if (!text) return
-    const res = await fetch(`/api/orders/${orderId}/checklist`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ description: text }) })
-    const data = await res.json()
-    if (data.id) {
-      setItems([...items, { id: data.id, order_id: orderId, description: text, completed: 0 }])
-      setText('')
+  const handleAddItem = async (e) => {
+    e.preventDefault();
+    if (!newItem.trim()) return;
+
+    try {
+      const res = await fetch(`/api/orders/${orderId}/checklist`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description: newItem })
+      });
+      
+      if (res.ok) {
+        const newId = await res.json();
+        setItems([...items, {
+          id: newId.id,
+          order_id: orderId,
+          description: newItem,
+          completed: 0
+        }]);
+        setNewItem('');
+        toast.success('Oppgave lagt til');
+      }
+    } catch (error) {
+      toast.error('Feil ved lagring av oppgave');
     }
-  }
+  };
 
-  const toggleItem = async (itemId, nextCompleted) => {
-    await fetch(`/api/checklist/${itemId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ completed: nextCompleted }) })
-    setItems(items.map(item => item.id === itemId ? { ...item, completed: nextCompleted ? 1 : 0 } : item))
-  }
+  const handleToggleComplete = async (itemId, currentCompleted) => {
+    try {
+      const res = await fetch(`/api/checklist/${itemId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completed: !currentCompleted })
+      });
+      
+      if (res.ok) {
+        setItems(items.map(item => 
+          item.id === itemId ? { ...item, completed: !currentCompleted } : item
+        ));
+        toast.success('Oppgave oppdatert');
+      }
+    } catch (error) {
+      toast.error('Feil ved oppdatering');
+    }
+  };
 
-  const runReview = async () => {
-    setLoading(true)
-    const res = await fetch(`/api/orders/${orderId}/review`)
-    const data = await res.json()
-    setReview(data.review)
-    setLoading(false)
+  const handleRunReview = () => {
+    if (onReviewRequested) {
+      onReviewRequested();
+    }
+  };
+
+  const completedCount = items.filter(item => item.completed).length;
+  const totalCount = items.length;
+  const progress = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+
+  if (loading) {
+    return (
+      <div className="p-4 text-center">
+        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+      </div>
+    );
   }
 
   return (
-    React.createElement('div', { style: { border: '1px solid #ddd', padding: 10, borderRadius: 6 } },
-      React.createElement('h4', null, 'Checklist'),
-      React.createElement('ul', null, items.map(it => React.createElement('li', { key: it.id },
-        React.createElement('label', null,
-          React.createElement('input', { type: 'checkbox', checked: Boolean(it.completed), onChange: e => toggleItem(it.id, e.target.checked), style: { marginRight: 8 } }),
-          it.description,
-          it.completed ? ' ✅' : ''
-        )
-      ))),
-      React.createElement('form', { onSubmit: add, style: { marginTop: 8 } },
-        React.createElement('input', { value: text, onChange: e=>setText(e.target.value), placeholder: 'Add checklist item' }),
-        React.createElement('button', { type: 'submit' }, 'Add')
-      ),
-      React.createElement('div', { style: { marginTop: 10 } },
-        React.createElement('button', { type: 'button', onClick: runReview, disabled: loading }, loading ? 'Reviewing...' : 'Run AI review')
-      ),
-      review && React.createElement('div', { style: { marginTop: 12, whiteSpace: 'pre-wrap', borderTop: '1px solid #eee', paddingTop: 10 } },
-        review.map((item, index) => React.createElement('div', { key: index }, item.content))
-      )
-    )
-  )
+    <div className="space-y-4">
+      {/* Progress bar */}
+      {totalCount > 0 && (
+        <div className="bg-gray-100 rounded-xl p-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-gray-700">
+              Fremdrift: {completedCount}/{totalCount} fullført
+            </span>
+            <span className="text-sm font-bold text-blue-600">{progress}%</span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div 
+              className="bg-gradient-to-r from-blue-500 to-green-500 h-2 rounded-full transition-all duration-300"
+              style={{ width: `${progress}%` }}
+            ></div>
+          </div>
+        </div>
+      )}
+
+      {/* Add new item */}
+      <form onSubmit={handleAddItem} className="bg-white border rounded-xl p-4">
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={newItem}
+            onChange={(e) => setNewItem(e.target.value)}
+            placeholder="Legg til ny oppgave..."
+            className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+          <button
+            type="submit"
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          >
+            Legg til
+          </button>
+        </div>
+      </form>
+
+      {/* Checklist items */}
+      <div className="bg-white border rounded-xl overflow-hidden">
+        {items.length === 0 ? (
+          <div className="p-6 text-center text-gray-500">
+            <div className="text-2xl mb-2">✓</div>
+            <p>Ingen oppgaver ennå</p>
+          </div>
+        ) : (
+          <div className="divide-y">
+            {items.map((item) => (
+              <div
+                key={item.id}
+                className="p-4 hover:bg-gray-50 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => handleToggleComplete(item.id, item.completed)}
+                    className={`flex-shrink-0 h-6 w-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                      item.completed 
+                        ? 'bg-green-500 border-green-500' 
+                        : 'border-gray-300 hover:border-blue-400'
+                    }`}
+                  >
+                    {item.completed && <span className="text-white text-sm">✓</span>}
+                  </button>
+                  
+                  <span className={`flex-1 text-gray-900 ${item.completed ? 'line-through text-gray-400' : ''}`}>
+                    {item.description}
+                  </span>
+                  
+                  {!item.completed && (
+                    <button
+                      onClick={() => handleToggleComplete(item.id, item.completed)}
+                      className="text-sm text-blue-600 hover:text-blue-800"
+                    >
+                      Fullfør
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* AI Review button */}
+      {totalCount > 0 && (
+        <div className="bg-white border rounded-xl p-4">
+          <button
+            onClick={handleRunReview}
+            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-xl font-semibold transition-all shadow-sm hover:shadow-md"
+          >
+            <span>🤖</span>
+            Kjør AI Review
+          </button>
+          <p className="text-xs text-gray-500 text-center mt-2">
+            Få en automatisk vurdering av sjekklisten
+          </p>
+        </div>
+      )}
+    </div>
+  );
 }

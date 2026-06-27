@@ -33,6 +33,12 @@ app.get('/api/technicians', (req, res) => {
   res.json(db.getTechnicians());
 });
 
+app.get('/api/technicians/:id', (req, res) => {
+  const tech = db.getTechnicianById(parseInt(req.params.id, 10));
+  if (!tech) return res.status(404).json({ error: 'Not found' });
+  res.json(tech);
+});
+
 app.get('/api/technicians/:id/bookings', (req, res) => {
   const id = parseInt(req.params.id, 10);
   res.json(db.getBookingsForTech(id));
@@ -59,11 +65,30 @@ app.patch('/api/checklist/:itemId', (req, res) => {
   res.json({ changes });
 });
 
+// Oppdater ordre-status med støtte for tildeling og tid
 app.post('/api/orders/:id/status', (req, res) => {
   const id = parseInt(req.params.id, 10);
-  const { status } = req.body;
+  const { status, assigned_tech_id, scheduled_start, scheduled_end } = req.body;
   if (!status) return res.status(400).json({ error: 'status required' });
-  const changes = db.updateOrderStatus(id, status);
+  
+  const changes = db.updateOrderStatus(
+    id, 
+    status, 
+    assigned_tech_id || null,
+    scheduled_start || null,
+    scheduled_end || null
+  );
+  res.json({ changes });
+});
+
+// Full oppdatering av ordre
+app.patch('/api/orders/:id', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const updates = req.body;
+  if (!updates || Object.keys(updates).length === 0) {
+    return res.status(400).json({ error: 'No updates provided' });
+  }
+  const changes = db.updateOrderFull(id, updates);
   res.json({ changes });
 });
 
@@ -71,7 +96,7 @@ const ai = require('./ai');
 
 app.get('/api/orders/:id/review', async (req, res) => {
   const id = parseInt(req.params.id, 10);
-  const order = db.getOrders().find(o => o.id === id);
+  const order = db.getOrderById(id);
   if (!order) return res.status(404).json({ error: 'Order not found' });
   const checklist = db.getChecklistForOrder(id);
   const review = await ai.reviewChecklist(order, checklist);
@@ -88,6 +113,12 @@ app.get('/api/orders', (req, res) => {
   res.json(db.getOrders());
 });
 
+app.get('/api/orders/:id', (req, res) => {
+  const order = db.getOrderById(parseInt(req.params.id, 10));
+  if (!order) return res.status(404).json({ error: 'Order not found' });
+  res.json(order);
+});
+
 app.post('/api/orders', (req, res) => {
   try {
     const id = db.createOrder(req.body);
@@ -97,11 +128,22 @@ app.post('/api/orders', (req, res) => {
   }
 });
 
-// simple schedule suggest placeholder
+// Simple schedule suggest endpoint
 app.post('/api/schedule/suggest', (req, res) => {
   const { orderId } = req.body;
+  if (!orderId) return res.status(400).json({ error: 'orderId required' });
   const suggestions = db.suggestForOrder(orderId);
   res.json(suggestions);
+});
+
+// Reset demo data
+app.post('/api/demo/reset', (req, res) => {
+  try {
+    const result = db.resetDemoData();
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // Serve frontend in production (if built)
