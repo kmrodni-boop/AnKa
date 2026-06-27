@@ -80,7 +80,7 @@ export default function Checklist({ orderId, onReviewRequested }) {
   if (loading) {
     return (
       <div className="p-4 text-center">
-        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#520000] mx-auto"></div>
       </div>
     );
   }
@@ -94,11 +94,11 @@ export default function Checklist({ orderId, onReviewRequested }) {
             <span className="text-sm font-medium text-gray-700">
               Fremdrift: {completedCount}/{totalCount} fullført
             </span>
-            <span className="text-sm font-bold text-blue-600">{progress}%</span>
+            <span className="text-sm font-bold text-[#520000]">{progress}%</span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-2">
             <div 
-              className="bg-gradient-to-r from-blue-500 to-green-500 h-2 rounded-full transition-all duration-300"
+              className="bg-gradient-to-r from-[#520000] to-red-500 h-2 rounded-full transition-all duration-300"
               style={{ width: `${progress}%` }}
             ></div>
           </div>
@@ -113,11 +113,11 @@ export default function Checklist({ orderId, onReviewRequested }) {
             value={newItem}
             onChange={(e) => setNewItem(e.target.value)}
             placeholder="Legg til ny oppgave..."
-            className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#520000] focus:border-transparent"
           />
           <button
             type="submit"
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            className="px-4 py-2 bg-[#520000] hover:bg-[#3a0000] text-white rounded-lg transition-colors"
           >
             Legg til
           </button>
@@ -143,8 +143,8 @@ export default function Checklist({ orderId, onReviewRequested }) {
                     onClick={() => handleToggleComplete(item.id, item.completed)}
                     className={`flex-shrink-0 h-6 w-6 rounded-full border-2 flex items-center justify-center transition-all ${
                       item.completed 
-                        ? 'bg-green-500 border-green-500' 
-                        : 'border-gray-300 hover:border-blue-400'
+                        ? 'bg-[#520000] border-[#520000]' 
+                        : 'border-gray-300 hover:border-[#520000]'
                     }`}
                   >
                     {item.completed && <span className="text-white text-sm">✓</span>}
@@ -157,7 +157,7 @@ export default function Checklist({ orderId, onReviewRequested }) {
                   {!item.completed && (
                     <button
                       onClick={() => handleToggleComplete(item.id, item.completed)}
-                      className="text-sm text-blue-600 hover:text-blue-800"
+                      className="text-sm text-[#520000] hover:text-[#3a0000]"
                     >
                       Fullfør
                     </button>
@@ -174,7 +174,7 @@ export default function Checklist({ orderId, onReviewRequested }) {
         <div className="bg-white border rounded-xl p-4">
           <button
             onClick={handleRunReview}
-            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-xl font-semibold transition-all shadow-sm hover:shadow-md"
+            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-[#520000] to-purple-600 hover:from-[#3a0000] hover:to-purple-700 text-white rounded-xl font-semibold transition-all shadow-sm hover:shadow-md"
           >
             <span>🤖</span>
             Kjør AI Review
