@@ -35,12 +35,6 @@ export default function OrdersTab({ orders, technicians, customers, onOrderSelec
     const sortableOrders = [...filteredOrders];
     if (sortConfig.key) {
       sortableOrders.sort((a, b) => {
-        // Håndter dato-felter
-        if (sortConfig.key === 'scheduled_start' || sortConfig.key === 'scheduled_end') {
-          const aVal = a[sortConfig.key] ? new Date(a[sortConfig.key]) : new Date(0);
-          const bVal = b[sortConfig.key] ? new Date(b[sortConfig.key]) : new Date(0);
-          return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal;
-        }
         // Håndter numeriske felter
         if (['id', 'estimated_hours', 'customer_id'].includes(sortConfig.key)) {
           const aVal = a[sortConfig.key] || 0;
@@ -68,7 +62,7 @@ export default function OrdersTab({ orders, technicians, customers, onOrderSelec
 
   const getSortIndicator = (key) => {
     if (sortConfig.key !== key) return null;
-    return sortConfig.direction === 'asc' ? '↑' : '↓';
+    return sortConfig.direction === 'asc' ? '\u2191' : '\u2193';
   };
 
   const getStatusColor = (status) => {
@@ -84,7 +78,7 @@ export default function OrdersTab({ orders, technicians, customers, onOrderSelec
 
   const getStatusText = (status) => {
     switch (status?.toLowerCase()) {
-      case 'open': return 'Åpen';
+      case 'open': return '\u00c5pen';
       case 'planlagt': return 'Planlagt';
       case 'in_progress': return 'Under arbeid';
       case 'done': return 'Ferdig';
@@ -104,30 +98,13 @@ export default function OrdersTab({ orders, technicians, customers, onOrderSelec
     return customer ? customer.name : `Kunde #${customerId}`;
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return 'Ikke satt';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('nb-NO', { day: 'numeric', month: 'short', year: 'numeric' });
-  };
-
-  const formatDateTime = (dateString) => {
-    if (!dateString) return 'Ikke satt';
-    const date = new Date(dateString);
-    return date.toLocaleString('nb-NO', {
-      day: 'numeric',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
   return (
     <div className="space-y-6">
       {/* Filters */}
       <div className="bg-white border rounded-2xl p-6 shadow-sm">
         <h2 className="text-xl font-semibold text-[#520000] mb-4">Filter ordrer</h2>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
             <select
@@ -185,7 +162,7 @@ export default function OrdersTab({ orders, technicians, customers, onOrderSelec
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Søk</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">S\u00f8k</label>
             <input
               type="text"
               value={filters.search}
@@ -209,7 +186,7 @@ export default function OrdersTab({ orders, technicians, customers, onOrderSelec
         </div>
       </div>
 
-      {/* Orders Table */}
+      {/* Orders Table - Kompakt versjon */}
       <div className="bg-white border rounded-2xl shadow-sm overflow-hidden">
         <table className="w-full">
           <thead className="bg-gray-50">
@@ -239,12 +216,6 @@ export default function OrdersTab({ orders, technicians, customers, onOrderSelec
                 Tekniker {getSortIndicator('assigned_tech_id')}
               </th>
               <th 
-                onClick={() => requestSort('scheduled_start')} 
-                className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-              >
-                Planlagt start {getSortIndicator('scheduled_start')}
-              </th>
-              <th 
                 onClick={() => requestSort('status')} 
                 className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
               >
@@ -258,8 +229,8 @@ export default function OrdersTab({ orders, technicians, customers, onOrderSelec
           <tbody className="bg-white divide-y divide-gray-100">
             {sortedOrders.length === 0 ? (
               <tr>
-                <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
-                  <div className="text-4xl mb-2">📋</div>
+                <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
+                  <div className="text-4xl mb-2">\ud83d\udccb</div>
                   <p>Ingen ordrer funnet med gjeldende filter</p>
                 </td>
               </tr>
@@ -282,9 +253,6 @@ export default function OrdersTab({ orders, technicians, customers, onOrderSelec
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                     {getTechnicianName(order.assigned_tech_id)}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                    {formatDateTime(order.scheduled_start)}
-                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-block px-3 py-1 text-xs rounded-full ${getStatusColor(order.status)}`}>
                       {getStatusText(order.status)}
@@ -298,7 +266,7 @@ export default function OrdersTab({ orders, technicians, customers, onOrderSelec
                       }}
                       className="text-sm text-[#520000] hover:text-[#3a0000] font-medium"
                     >
-                      Vis detaljer →
+                      Vis detaljer \u2192
                     </button>
                   </td>
                 </tr>
