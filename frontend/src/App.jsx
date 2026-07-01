@@ -26,10 +26,10 @@ export default function App() {
 
   // Tab definisjoner for main navigation
   const mainTabs = [
-    { id: 'orders', label: 'Ordrer', icon: '\ud83d\udccb' },
-    { id: 'customers', label: 'Kunder', icon: '\ud83c\udfe2' },
-    { id: 'deviations', label: 'Avvik', icon: '\u26a0\ufe0f' },
-    { id: 'users', label: 'Brukere', icon: '\ud83d\udc65' }
+    { id: 'orders', label: 'Ordrer', icon: '📋' },
+    { id: 'customers', label: 'Kunder', icon: '🏢' },
+    { id: 'deviations', label: 'Avvik', icon: '⚠️' },
+    { id: 'users', label: 'Brukere', icon: '👥' }
   ];
 
   React.useEffect(() => {

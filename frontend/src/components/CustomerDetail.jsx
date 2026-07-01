@@ -174,8 +174,8 @@ export default function CustomerDetail({
 
         {customerOrders.length === 0 && (
           <div className="bg-white border rounded-2xl p-8 text-center text-gray-500 shadow-sm">
-            <div className="text-4xl mb-2">\ud83d\udccb</div>
-            <p>Ingen ordre p\u00e5 denne kunden enn\u00e5.</p>
+            <div className="text-4xl mb-2">📋</div>
+            <p>Ingen ordre på denne kunden ennå.</p>
           </div>
         )}
 
@@ -194,10 +194,10 @@ export default function CustomerDetail({
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
                       <div className="text-2xl">
-                        {order.type === '\u00e5rskontroll' ? '\ud83d\udcc5' : 
-                         order.type === 'service' ? '\ud83d\udd27' : 
-                         order.type === 'inspection' ? '\ud83d\udd0d' : 
-                         order.type === 'trykktest' ? '\2699\ufe0f' : '\ud83d\udccb'}
+                        {order.type === 'årskontroll' ? '📅' : 
+                         order.type === 'service' ? '🔧' : 
+                         order.type === 'inspection' ? '🔍' : 
+                         order.type === 'trykktest' ? '⚙️' : '📋'}
                       </div>
                       <div>
                         <div className="font-semibold text-xl text-gray-900">
