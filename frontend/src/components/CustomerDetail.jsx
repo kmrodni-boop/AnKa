@@ -2,7 +2,15 @@ import React from 'react';
 import ScheduleSuggestions from './ScheduleSuggestions';
 import { toast } from 'react-hot-toast';
 
-export default function CustomerDetail({ customer, orders, technicians, onBack, onOrderAction, role }) {
+export default function CustomerDetail({ 
+  customer, 
+  orders, 
+  technicians, 
+  onBack, 
+  onOrderAction, 
+  role,
+  onOrderClick
+}) {
   const [selectedOrder, setSelectedOrder] = React.useState(null);
   const [suggestions, setSuggestions] = React.useState([]);
   const [loading, setLoading] = React.useState(false);
@@ -111,6 +119,12 @@ export default function CustomerDetail({ customer, orders, technicians, onBack, 
     return tech ? tech.name : `Tekniker #${techId}`;
   };
 
+  const handleOrderClick = (order) => {
+    if (onOrderClick) {
+      onOrderClick(order);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -173,7 +187,8 @@ export default function CustomerDetail({ customer, orders, technicians, onBack, 
             return (
               <div
                 key={order.id}
-                className="bg-white border rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow"
+                className="bg-white border rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                onClick={() => handleOrderClick(order)}
               >
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
@@ -185,7 +200,9 @@ export default function CustomerDetail({ customer, orders, technicians, onBack, 
                          order.type === 'trykktest' ? '\2699\ufe0f' : '\ud83d\udccb'}
                       </div>
                       <div>
-                        <div className="font-semibold text-xl text-gray-900">{order.type}</div>
+                        <div className="font-semibold text-xl text-gray-900">
+                          Ordre #{order.id} - {order.type}
+                        </div>
                         <div className="text-gray-600">
                           Estimert tid: {order.estimated_hours} timer
                         </div>
@@ -220,7 +237,10 @@ export default function CustomerDetail({ customer, orders, technicians, onBack, 
                   <div className="flex gap-2 ml-4">
                     {order.status === 'open' && (
                       <button
-                        onClick={() => handleFindTime(order)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleFindTime(order);
+                        }}
                         className="px-5 py-2.5 bg-[#520000] hover:bg-[#3a0000] text-white rounded-xl text-sm font-medium transition-colors shadow-sm hover:shadow-md"
                       >
                         Finn ledig tid
@@ -229,7 +249,10 @@ export default function CustomerDetail({ customer, orders, technicians, onBack, 
                     
                     {order.status === 'planlagt' && (
                       <button
-                        onClick={() => setExpandedOrder(isExpanded ? null : order.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setExpandedOrder(isExpanded ? null : order.id);
+                        }}
                         className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-medium transition-colors"
                       >
                         {isExpanded ? 'Skjul' : 'Detaljer'}

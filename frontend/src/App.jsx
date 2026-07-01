@@ -14,17 +14,18 @@ export default function App() {
   const [customers, setCustomers] = React.useState([]);
   const [orders, setOrders] = React.useState([]);
   const [technicians, setTechnicians] = React.useState([]);
-  const [selectedCustomer, setSelectedCustomer] = React.useState(null);
-  const [selectedOrder, setSelectedOrder] = React.useState(null);
-  const [activeTech, setActiveTech] = React.useState(null);
   const [role, setRole] = React.useState('coordinator');
   const [loading, setLoading] = React.useState(true);
   const [activeTab, setActiveTab] = React.useState('orders');
   const [recentCustomers, setRecentCustomers] = React.useState([]);
   const [closedOrders, setClosedOrders] = React.useState([]);
+  
+  // Tab system for customers and their orders
+  const [customerTabs, setCustomerTabs] = React.useState([]);
+  const [activeCustomerTabId, setActiveCustomerTabId] = React.useState(null);
 
-  // Tab definisjoner
-  const tabs = [
+  // Tab definisjoner for main navigation
+  const mainTabs = [
     { id: 'orders', label: 'Ordrer', icon: '\ud83d\udccb' },
     { id: 'customers', label: 'Kunder', icon: '\ud83c\udfe2' },
     { id: 'deviations', label: 'Avvik', icon: '\u26a0\ufe0f' },
@@ -106,9 +107,8 @@ export default function App() {
           setCustomers(customersData);
           setOrders(ordersData);
           setTechnicians(techniciansData);
-          setSelectedCustomer(null);
-          setSelectedOrder(null);
-          setRecentCustomers([]);
+          setCustomerTabs([]);
+          setActiveCustomerTabId(null);
           setClosedOrders([]);
         }
       } catch (error) {
@@ -119,8 +119,24 @@ export default function App() {
 
   // Oppdater nylige kunder når en kunde velges
   const handleCustomerSelect = (customer) => {
-    setSelectedCustomer(customer);
-    setActiveTab('customers');
+    // Sjekk om kunden allerede har en tab
+    const existingTab = customerTabs.find(tab => tab.customerId === customer.id);
+    
+    if (existingTab) {
+      // Aktiver eksisterende tab
+      setActiveCustomerTabId(existingTab.id);
+    } else {
+      // Opprett ny tab
+      const newTab = {
+        id: `customer-${Date.now()}-${customer.id}`,
+        customerId: customer.id,
+        customer,
+        orderTabs: [], // Nested tabs for orders
+        activeOrderTabId: null
+      };
+      setCustomerTabs(prev => [...prev, newTab]);
+      setActiveCustomerTabId(newTab.id);
+    }
     
     // Oppdater nylige kunder (maks 5, unike)
     setRecentCustomers(prev => {
@@ -129,10 +145,86 @@ export default function App() {
     });
   };
 
-  // Lukk detaljvisning
-  const handleCloseDetail = () => {
-    setSelectedCustomer(null);
-    setSelectedOrder(null);
+  // Lukk en kunde-tab
+  const closeCustomerTab = (tabId) => {
+    setCustomerTabs(prev => {
+      const newTabs = prev.filter(tab => tab.id !== tabId);
+      // Hvis vi lukker den aktive taben, sett aktiv til null eller siste tab
+      if (activeCustomerTabId === tabId) {
+        if (newTabs.length > 0) {
+          setActiveCustomerTabId(newTabs[newTabs.length - 1].id);
+        } else {
+          setActiveCustomerTabId(null);
+        }
+      }
+      return newTabs;
+    });
+  };
+
+  // Åpne en ordre i en kunde-tab som nested tab
+  const openOrderInCustomerTab = (customerTabId, order) => {
+    setCustomerTabs(prev => prev.map(tab => {
+      if (tab.id !== customerTabId) return tab;
+      
+      // Sjekk om orden allerede har en tab
+      const existingOrderTab = tab.orderTabs.find(ot => ot.orderId === order.id);
+      
+      if (existingOrderTab) {
+        // Aktiver eksisterende order tab
+        return {
+          ...tab,
+          activeOrderTabId: existingOrderTab.id
+        };
+      } else {
+        // Opprett ny order tab
+        const newOrderTab = {
+          id: `order-${Date.now()}-${order.id}`,
+          orderId: order.id,
+          order
+        };
+        return {
+          ...tab,
+          orderTabs: [...tab.orderTabs, newOrderTab],
+          activeOrderTabId: newOrderTab.id
+        };
+      }
+    }));
+  };
+
+  // Lukk en order-tab
+  const closeOrderTab = (customerTabId, orderTabId) => {
+    setCustomerTabs(prev => prev.map(tab => {
+      if (tab.id !== customerTabId) return tab;
+      
+      const newOrderTabs = tab.orderTabs.filter(ot => ot.id !== orderTabId);
+      let newActiveOrderTabId = tab.activeOrderTabId;
+      
+      // Hvis vi lukker den aktive order-taben
+      if (tab.activeOrderTabId === orderTabId) {
+        if (newOrderTabs.length > 0) {
+          newActiveOrderTabId = newOrderTabs[newOrderTabs.length - 1].id;
+        } else {
+          newActiveOrderTabId = null;
+        }
+      }
+      
+      return {
+        ...tab,
+        orderTabs: newOrderTabs,
+        activeOrderTabId: newActiveOrderTabId
+      };
+    }));
+  };
+
+  // Sett aktiv order-tab
+  const setActiveOrderTab = (customerTabId, orderTabId) => {
+    setCustomerTabs(prev => prev.map(tab => {
+      if (tab.id !== customerTabId) return tab;
+      return {
+        ...tab,
+        activeOrderTabId: orderTabId
+      };
+    }));
   };
 
   // Lukk en ordre (oppdater status til 'done')
@@ -148,13 +240,25 @@ export default function App() {
         toast.success(`Ordre #${orderId} markert som ferdig`);
         refreshOrders();
         
-        // Oppdater lukkede ordrer
-        const updatedOrders = await res.json();
-        const doneOrders = orders.map(o => o.id === orderId ? { ...o, status: 'done' } : o);
-        const sortedDoneOrders = doneOrders
-          .filter(o => o.status?.toLowerCase() === 'done')
-          .sort((a, b) => (b.scheduled_end || b.updated_at || new Date(0)) - (a.scheduled_end || a.updated_at || new Date(0)));
-        setClosedOrders(sortedDoneOrders.slice(0, 5));
+        // Lukk eventuelle åpne order-tabs for denne orden
+        setCustomerTabs(prev => prev.map(tab => {
+          const updatedOrderTabs = tab.orderTabs.filter(ot => ot.orderId !== orderId);
+          let updatedActiveOrderTabId = tab.activeOrderTabId;
+          
+          if (tab.activeOrderTabId && tab.orderTabs.some(ot => ot.orderId === orderId)) {
+            if (updatedOrderTabs.length > 0) {
+              updatedActiveOrderTabId = updatedOrderTabs[updatedOrderTabs.length - 1].id;
+            } else {
+              updatedActiveOrderTabId = null;
+            }
+          }
+          
+          return {
+            ...tab,
+            orderTabs: updatedOrderTabs,
+            activeOrderTabId: updatedActiveOrderTabId
+          };
+        }));
         
       } else {
         toast.error('Kunne ikke lukke ordre');
@@ -192,6 +296,13 @@ export default function App() {
     const tech = technicians.find(t => t.id === techId);
     return tech ? tech.name : `Tekniker #${techId}`;
   };
+
+  const getOrderById = (orderId) => {
+    return orders.find(o => o.id === orderId);
+  };
+
+  // Aktive kunde-tabs (for rendering)
+  const activeCustomerTab = customerTabs.find(tab => tab.id === activeCustomerTabId);
 
   if (loading) {
     return (
@@ -233,12 +344,11 @@ export default function App() {
                 onClick={() => {
                   const customer = customers.find(c => c.id === order.customer_id);
                   if (customer) {
-                    setSelectedCustomer(customer);
-                    setActiveTab('customers');
+                    handleCustomerSelect(customer);
                   }
                 }}
                 className={`px-4 py-3 rounded-xl cursor-pointer transition-all border-2 ${
-                  selectedCustomer?.id === order.customer_id 
+                  activeCustomerTab?.customerId === order.customer_id 
                     ? 'bg-[#520000] text-white font-medium border-[#520000]' 
                     : 'hover:bg-gray-100 text-gray-700 border-transparent'
                 }`}
@@ -265,19 +375,18 @@ export default function App() {
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top bar */}
         <div className="h-14 border-b bg-white flex items-center justify-between px-6 shadow-sm">
-          <div className="flex items-center gap-4">
-            {/* Tab Navigation */}
+          <div className="flex items-center gap-2 overflow-x-auto">
+            {/* Main Tab Navigation */}
             <div className="flex gap-1">
-              {tabs.map(tab => (
+              {mainTabs.map(tab => (
                 <button
                   key={tab.id}
                   onClick={() => {
                     setActiveTab(tab.id);
-                    setSelectedCustomer(null);
-                    setSelectedOrder(null);
+                    setActiveCustomerTabId(null);
                   }}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    activeTab === tab.id
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+                    activeTab === tab.id && !activeCustomerTabId
                       ? 'bg-[#520000] text-white'
                       : 'text-gray-600 hover:bg-gray-100'
                   }`}
@@ -285,33 +394,41 @@ export default function App() {
                   {tab.icon} {tab.label}
                 </button>
               ))}
-              
-              {/* Customer tab - vises bare når en kunde er valgt */}
-              {selectedCustomer && (
-                <button
-                  onClick={() => {
-                    setActiveTab('customer-detail');
-                  }}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
-                    activeTab === 'customer-detail'
-                      ? 'bg-[#520000] text-white'
-                      : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-                >
-                  <span>🏠 {selectedCustomer.name}</span>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedCustomer(null);
-                      setActiveTab('customers');
-                    }}
-                    className="text-xs hover:text-white"
-                  >
-                    ✕
-                  </button>
-                </button>
-              )}
             </div>
+
+            {/* Customer tabs - persistente tabs */}
+            {customerTabs.length > 0 && (
+              <div className="flex gap-1 ml-2">
+                {customerTabs.map(tab => {
+                  const customer = tab.customer || customers.find(c => c.id === tab.customerId);
+                  if (!customer) return null;
+                  
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveCustomerTabId(tab.id)}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap flex items-center gap-1 ${
+                        activeCustomerTabId === tab.id
+                          ? 'bg-[#520000] text-white'
+                          : 'text-gray-600 hover:bg-gray-100'
+                      }`}
+                    >
+                      <span>🏠 {customer.name}</span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          closeCustomerTab(tab.id);
+                        }}
+                        className="text-xs hover:text-white ml-1"
+                        title="Lukk"
+                      >
+                        ✕
+                      </button>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-4">
@@ -338,164 +455,218 @@ export default function App() {
 
         {/* Content Area */}
         <div className="flex-1 overflow-auto p-6 bg-gray-50">
-          {/* Tab Content */}
-          {activeTab === 'orders' && !selectedOrder && (
-            <OrdersTab
-              orders={orders}
-              technicians={technicians}
-              customers={customers}
-              onOrderSelect={(order) => {
-                setSelectedOrder(order);
-                // Finn tilhørende kunde
-                const customer = customers.find(c => c.id === order.customer_id);
-                if (customer) {
-                  setSelectedCustomer(customer);
-                }
-              }}
-              role={role}
-            />
-          )}
-
-          {activeTab === 'customers' && !selectedCustomer && (
-            <CustomerSearchTab
-              customers={customers}
-              onCustomerSelect={handleCustomerSelect}
-              role={role}
-            />
-          )}
-
-          {activeTab === 'deviations' && (
-            <DeviationsTab
-              orders={orders}
-              technicians={technicians}
-              customers={customers}
-              role={role}
-            />
-          )}
-
-          {activeTab === 'users' && (
-            <UsersTab
-              technicians={technicians}
-              role={role}
-            />
-          )}
-
-          {/* Customer Detail - Vises i hovedvinduet eller som aktiv tab */}
-          {(activeTab === 'customer-detail' || (selectedCustomer && !selectedOrder)) && selectedCustomer && (
-            <CustomerDetail
-              customer={selectedCustomer}
-              orders={orders.filter(o => o.customer_id === selectedCustomer.id)}
-              technicians={technicians}
-              onBack={() => {
-                setSelectedCustomer(null);
-                setActiveTab('customers');
-              }}
-              onOrderAction={refreshOrders}
-              role={role}
-            />
-          )}
-
-          {/* Order Detail Modal */}
-          {selectedOrder && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-auto">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-bold text-[#520000]">
-                    Ordre #{selectedOrder.id}
-                  </h2>
-                  <button
-                    onClick={() => setSelectedOrder(null)}
-                    className="text-gray-400 hover:text-gray-600 text-2xl"
-                  >
-                    ×
-                  </button>
-                </div>
-                
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <div className="text-sm text-gray-500 uppercase tracking-wider">Type</div>
-                      <div className="font-medium">{selectedOrder.type}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-500 uppercase tracking-wider">Status</div>
-                      <span className={`inline-block px-3 py-1 text-xs rounded-full ${getStatusColor(selectedOrder.status)}`}>
-                        {selectedOrder.status}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <div className="text-sm text-gray-500 uppercase tracking-wider">Kunde</div>
-                      <div className="font-medium">
-                        {getCustomerName(selectedOrder.customer_id)}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-500 uppercase tracking-wider">Tekniker</div>
-                      <div className="font-medium">
-                        {getTechnicianName(selectedOrder.assigned_tech_id)}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <div className="text-sm text-gray-500 uppercase tracking-wider">Estimert tid</div>
-                      <div className="font-medium">{selectedOrder.estimated_hours} timer</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-500 uppercase tracking-wider">Lokasjon</div>
-                      <div className="font-medium">
-                        {selectedOrder.lat?.toFixed(4)}, {selectedOrder.lng?.toFixed(4)}
-                      </div>
-                    </div>
-                  </div>
-
-                  {selectedOrder.scheduled_start && (
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <div className="text-sm text-gray-500 uppercase tracking-wider">Planlagt start</div>
-                        <div className="font-medium">
-                          {new Date(selectedOrder.scheduled_start).toLocaleString('nb-NO')}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-sm text-gray-500 uppercase tracking-wider">Planlagt slutt</div>
-                        <div className="font-medium">
-                          {new Date(selectedOrder.scheduled_end).toLocaleString('nb-NO')}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {selectedOrder.notes && (
-                    <div>
-                      <div className="text-sm text-gray-500 uppercase tracking-wider">Notater</div>
-                      <div className="font-medium">{selectedOrder.notes}</div>
-                    </div>
-                  )}
-
-                  <div className="flex gap-2 pt-4">
-                    {selectedOrder.status !== 'done' && (
+          {/* Hvis en kunde-tab er aktiv, vis kunde-innhold med nested tabs */}
+          {activeCustomerTab && (
+            <div className="space-y-4">
+              {/* Customer nested tabs (for orders) */}
+              {activeCustomerTab.orderTabs.length > 0 && (
+                <div className="flex gap-1 mb-4 bg-white p-2 rounded-lg shadow-sm">
+                  {activeCustomerTab.orderTabs.map(orderTab => {
+                    const order = getOrderById(orderTab.orderId);
+                    if (!order) return null;
+                    
+                    return (
                       <button
-                        onClick={() => handleCloseOrder(selectedOrder.id)}
-                        className="flex-1 px-4 py-2 bg-[#520000] hover:bg-[#3a0000] text-white rounded-lg font-medium transition-colors"
+                        key={orderTab.id}
+                        onClick={() => setActiveOrderTab(activeCustomerTab.id, orderTab.id)}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap flex items-center gap-2 ${
+                          activeCustomerTab.activeOrderTabId === orderTab.id
+                            ? 'bg-[#520000] text-white'
+                            : 'text-gray-600 hover:bg-gray-100'
+                        }`}
                       >
-                        Marker som ferdig
+                        <span>📄 Ordre #{order.id}</span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            closeOrderTab(activeCustomerTab.id, orderTab.id);
+                          }}
+                          className="text-xs hover:text-white"
+                          title="Lukk"
+                        >
+                          ✕
+                        </button>
                       </button>
-                    )}
-                    <button
-                      onClick={() => setSelectedOrder(null)}
-                      className="flex-1 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors"
-                    >
-                      Lukk
-                    </button>
-                  </div>
+                    );
+                  })}
                 </div>
-              </div>
+              )}
+
+              {/* Customer detail content */}
+              <CustomerDetail
+                customer={activeCustomerTab.customer}
+                orders={orders.filter(o => o.customer_id === activeCustomerTab.customerId)}
+                technicians={technicians}
+                onBack={() => {
+                  closeCustomerTab(activeCustomerTab.id);
+                  setActiveTab('customers');
+                }}
+                onOrderAction={refreshOrders}
+                role={role}
+                onOrderClick={(order) => {
+                  openOrderInCustomerTab(activeCustomerTab.id, order);
+                }}
+              />
+
+              {/* Order detail for nested tabs */}
+              {activeCustomerTab.activeOrderTabId && (
+                <div className="bg-white border rounded-2xl p-6 shadow-sm">
+                  {(() => {
+                    const activeOrderTab = activeCustomerTab.orderTabs.find(
+                      ot => ot.id === activeCustomerTab.activeOrderTabId
+                    );
+                    if (!activeOrderTab) return null;
+                    
+                    const order = getOrderById(activeOrderTab.orderId);
+                    if (!order) return null;
+                    
+                    return (
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center mb-4">
+                          <h2 className="text-xl font-bold text-[#520000]">
+                            Ordre #{order.id}
+                          </h2>
+                          <button
+                            onClick={() => closeOrderTab(activeCustomerTab.id, activeOrderTab.id)}
+                            className="text-gray-400 hover:text-gray-600 text-2xl"
+                          >
+                            ×
+                          </button>
+                        </div>
+                        
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <div className="text-sm text-gray-500 uppercase tracking-wider">Type</div>
+                              <div className="font-medium">{order.type}</div>
+                            </div>
+                            <div>
+                              <div className="text-sm text-gray-500 uppercase tracking-wider">Status</div>
+                              <span className={`inline-block px-3 py-1 text-xs rounded-full ${getStatusColor(order.status)}`}>
+                                {order.status}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <div className="text-sm text-gray-500 uppercase tracking-wider">Kunde</div>
+                              <div className="font-medium">
+                                {getCustomerName(order.customer_id)}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-sm text-gray-500 uppercase tracking-wider">Tekniker</div>
+                              <div className="font-medium">
+                                {getTechnicianName(order.assigned_tech_id)}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <div className="text-sm text-gray-500 uppercase tracking-wider">Estimert tid</div>
+                              <div className="font-medium">{order.estimated_hours} timer</div>
+                            </div>
+                            <div>
+                              <div className="text-sm text-gray-500 uppercase tracking-wider">Lokasjon</div>
+                              <div className="font-medium">
+                                {order.lat?.toFixed(4)}, {order.lng?.toFixed(4)}
+                              </div>
+                            </div>
+                          </div>
+
+                          {order.scheduled_start && (
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <div className="text-sm text-gray-500 uppercase tracking-wider">Planlagt start</div>
+                                <div className="font-medium">
+                                  {new Date(order.scheduled_start).toLocaleString('nb-NO')}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-sm text-gray-500 uppercase tracking-wider">Planlagt slutt</div>
+                                <div className="font-medium">
+                                  {new Date(order.scheduled_end).toLocaleString('nb-NO')}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {order.notes && (
+                            <div>
+                              <div className="text-sm text-gray-500 uppercase tracking-wider">Notater</div>
+                              <div className="font-medium">{order.notes}</div>
+                            </div>
+                          )}
+
+                          <div className="flex gap-2 pt-4">
+                            {order.status !== 'done' && (
+                              <button
+                                onClick={() => handleCloseOrder(order.id)}
+                                className="flex-1 px-4 py-2 bg-[#520000] hover:bg-[#3a0000] text-white rounded-lg font-medium transition-colors"
+                              >
+                                Marker som ferdig
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
             </div>
+          )}
+
+          {/* Main tab content (when no customer tab is active) */}
+          {!activeCustomerTab && (
+            <>
+              {activeTab === 'orders' && (
+                <OrdersTab
+                  orders={orders}
+                  technicians={technicians}
+                  customers={customers}
+                  onOrderSelect={(order) => {
+                    // Finn tilhørende kunde og åpne som tab
+                    const customer = customers.find(c => c.id === order.customer_id);
+                    if (customer) {
+                      handleCustomerSelect(customer);
+                      // Åpne orden som nested tab
+                      const customerTab = customerTabs.find(tab => tab.customerId === customer.id);
+                      if (customerTab) {
+                        openOrderInCustomerTab(customerTab.id, order);
+                      }
+                    }
+                  }}
+                  role={role}
+                />
+              )}
+
+              {activeTab === 'customers' && (
+                <CustomerSearchTab
+                  customers={customers}
+                  onCustomerSelect={handleCustomerSelect}
+                  role={role}
+                />
+              )}
+
+              {activeTab === 'deviations' && (
+                <DeviationsTab
+                  orders={orders}
+                  technicians={technicians}
+                  customers={customers}
+                  role={role}
+                />
+              )}
+
+              {activeTab === 'users' && (
+                <UsersTab
+                  technicians={technicians}
+                  role={role}
+                />
+              )}
+            </>
           )}
         </div>
       </div>
