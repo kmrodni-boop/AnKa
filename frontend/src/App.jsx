@@ -5,6 +5,7 @@ import OrderForm from './components/OrderForm';
 import TechnicianView from './components/TechnicianView';
 import CalendarView from './components/CalendarView';
 import CustomerDetail from './components/CustomerDetail';
+import OrderDetail from './components/OrderDetail';
 import OrdersTab from './components/OrdersTab';
 import CustomerSearchTab from './components/CustomerSearchTab';
 import DeviationsTab from './components/DeviationsTab';
@@ -407,7 +408,13 @@ export default function App() {
                   return (
                     <button
                       key={tab.id}
-                      onClick={() => setActiveCustomerTabId(tab.id)}
+                      onClick={() => {
+                        setActiveCustomerTabId(tab.id);
+                        // Nullstill aktiv order-tab når vi bytter kunde-tab
+                        setCustomerTabs(prev => prev.map(t => 
+                          t.id === tab.id ? { ...t, activeOrderTabId: null } : t
+                        ));
+                      }}
                       className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap flex items-center gap-1 ${
                         activeCustomerTabId === tab.id
                           ? 'bg-[#520000] text-white'
@@ -462,6 +469,23 @@ export default function App() {
               {/* Customer nested tabs (for orders) */}
               {activeCustomerTab.orderTabs.length > 0 && (
                 <div className="flex gap-1 mb-4 bg-white p-2 rounded-lg shadow-sm">
+                  {/* Generell tab for kundeinformasjon */}
+                  <button
+                    onClick={() => {
+                      setCustomerTabs(prev => prev.map(tab => 
+                        tab.id === activeCustomerTab.id ? { ...tab, activeOrderTabId: null } : tab
+                      ));
+                    }}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap flex items-center gap-2 ${
+                      !activeCustomerTab.activeOrderTabId
+                        ? 'bg-[#520000] text-white'
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    <span>\ud83c\udfe0 {activeCustomerTab.customer?.name || 'Kunde'}</span>
+                  </button>
+
+                  {/* Order tabs */}
                   {activeCustomerTab.orderTabs.map(orderTab => {
                     const order = getOrderById(orderTab.orderId);
                     if (!order) return null;
@@ -493,129 +517,37 @@ export default function App() {
                 </div>
               )}
 
-              {/* Customer detail content */}
-              <CustomerDetail
-                customer={activeCustomerTab.customer}
-                orders={orders.filter(o => o.customer_id === activeCustomerTab.customerId)}
-                technicians={technicians}
-                onBack={() => {
-                  closeCustomerTab(activeCustomerTab.id);
-                  setActiveTab('customers');
-                }}
-                onOrderAction={refreshOrders}
-                role={role}
-                onOrderClick={(order) => {
-                  openOrderInCustomerTab(activeCustomerTab.id, order);
-                }}
-              />
-
-              {/* Order detail for nested tabs */}
-              {activeCustomerTab.activeOrderTabId && (
-                <div className="bg-white border rounded-2xl p-6 shadow-sm">
-                  {(() => {
-                    const activeOrderTab = activeCustomerTab.orderTabs.find(
-                      ot => ot.id === activeCustomerTab.activeOrderTabId
-                    );
-                    if (!activeOrderTab) return null;
-                    
-                    const order = getOrderById(activeOrderTab.orderId);
-                    if (!order) return null;
-                    
-                    return (
-                      <div className="space-y-4">
-                        <div className="flex justify-between items-center mb-4">
-                          <h2 className="text-xl font-bold text-[#520000]">
-                            Ordre #{order.id}
-                          </h2>
-                          <button
-                            onClick={() => closeOrderTab(activeCustomerTab.id, activeOrderTab.id)}
-                            className="text-gray-400 hover:text-gray-600 text-2xl"
-                          >
-                            \u00d7
-                          </button>
-                        </div>
-                        
-                        <div className="space-y-4">
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <div className="text-sm text-gray-500 uppercase tracking-wider">Type</div>
-                              <div className="font-medium">{order.type}</div>
-                            </div>
-                            <div>
-                              <div className="text-sm text-gray-500 uppercase tracking-wider">Status</div>
-                              <span className={`inline-block px-3 py-1 text-xs rounded-full ${getStatusColor(order.status)}`}>
-                                {order.status}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <div className="text-sm text-gray-500 uppercase tracking-wider">Kunde</div>
-                              <div className="font-medium">
-                                {getCustomerName(order.customer_id)}
-                              </div>
-                            </div>
-                            <div>
-                              <div className="text-sm text-gray-500 uppercase tracking-wider">Tekniker</div>
-                              <div className="font-medium">
-                                {getTechnicianName(order.assigned_tech_id)}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <div className="text-sm text-gray-500 uppercase tracking-wider">Estimert tid</div>
-                              <div className="font-medium">{order.estimated_hours} timer</div>
-                            </div>
-                            <div>
-                              <div className="text-sm text-gray-500 uppercase tracking-wider">Lokasjon</div>
-                              <div className="font-medium">
-                                {order.lat?.toFixed(4)}, {order.lng?.toFixed(4)}
-                              </div>
-                            </div>
-                          </div>
-
-                          {order.scheduled_start && (
-                            <div className="grid grid-cols-2 gap-4">
-                              <div>
-                                <div className="text-sm text-gray-500 uppercase tracking-wider">Planlagt start</div>
-                                <div className="font-medium">
-                                  {new Date(order.scheduled_start).toLocaleString('nb-NO')}
-                                </div>
-                              </div>
-                              <div>
-                                <div className="text-sm text-gray-500 uppercase tracking-wider">Planlagt slutt</div>
-                                <div className="font-medium">
-                                  {new Date(order.scheduled_end).toLocaleString('nb-NO')}
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          {order.notes && (
-                            <div>
-                              <div className="text-sm text-gray-500 uppercase tracking-wider">Notater</div>
-                              <div className="font-medium">{order.notes}</div>
-                            </div>
-                          )}
-
-                          <div className="flex gap-2 pt-4">
-                            {order.status !== 'done' && (
-                              <button
-                                onClick={() => handleCloseOrder(order.id)}
-                                className="flex-1 px-4 py-2 bg-[#520000] hover:bg-[#3a0000] text-white rounded-lg font-medium transition-colors"
-                              >
-                                Marker som ferdig
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
+              {/* Vis enten CustomerDetail (generell) eller OrderDetail (for ordre-undertab) */}
+              {activeCustomerTab.activeOrderTabId ? (
+                <OrderDetail
+                  order={getOrderById(
+                    activeCustomerTab.orderTabs.find(ot => ot.id === activeCustomerTab.activeOrderTabId)?.orderId
+                  )}
+                  technicians={technicians}
+                  customers={customers}
+                  onClose={() => {
+                    setCustomerTabs(prev => prev.map(tab => 
+                      tab.id === activeCustomerTab.id ? { ...tab, activeOrderTabId: null } : tab
+                    ));
+                  }}
+                  onOrderAction={refreshOrders}
+                  role={role}
+                />
+              ) : (
+                <CustomerDetail
+                  customer={activeCustomerTab.customer}
+                  orders={orders.filter(o => o.customer_id === activeCustomerTab.customerId)}
+                  technicians={technicians}
+                  onBack={() => {
+                    closeCustomerTab(activeCustomerTab.id);
+                    setActiveTab('customers');
+                  }}
+                  onOrderAction={refreshOrders}
+                  role={role}
+                  onOrderClick={(order) => {
+                    openOrderInCustomerTab(activeCustomerTab.id, order);
+                  }}
+                />
               )}
             </div>
           )}
