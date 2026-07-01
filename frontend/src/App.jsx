@@ -10,6 +10,7 @@ import OrdersTab from './components/OrdersTab';
 import CustomerSearchTab from './components/CustomerSearchTab';
 import DeviationsTab from './components/DeviationsTab';
 import UsersTab from './components/UsersTab';
+import TemplatesTab from './components/TemplatesTab';
 import Login from './components/Login';
 import { getStoredUser, clearSession } from './session';
 
@@ -46,6 +47,7 @@ export default function App() {
     { id: 'orders', label: 'Ordrer', icon: '📋' },
     { id: 'customers', label: 'Kunder', icon: '🏢' },
     { id: 'deviations', label: 'Avvik', icon: '⚠️' },
+    { id: 'templates', label: 'Maler', icon: '📝' },
     { id: 'users', label: 'Brukere', icon: '👥' }
   ];
 
@@ -661,6 +663,10 @@ export default function App() {
                   customers={customers}
                   role={role}
                 />
+              )}
+
+              {activeTab === 'templates' && (
+                <TemplatesTab role={role} />
               )}
 
               {activeTab === 'users' && (

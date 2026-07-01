@@ -65,8 +65,28 @@ function createSchema() {
     CREATE TABLE IF NOT EXISTS checklist_items (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       order_id INTEGER,
+      section TEXT,
       description TEXT,
-      completed INTEGER DEFAULT 0
+      comment TEXT,
+      status TEXT,
+      order_index INTEGER DEFAULT 0,
+      template_item_id INTEGER
+    );
+
+    CREATE TABLE IF NOT EXISTS checklist_templates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT,
+      description TEXT,
+      order_type TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS checklist_template_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      template_id INTEGER,
+      section TEXT,
+      description TEXT,
+      order_index INTEGER DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS users (
@@ -85,6 +105,8 @@ function createSchema() {
 function dropSchema() {
   db.exec(`
     DROP TABLE IF EXISTS checklist_items;
+    DROP TABLE IF EXISTS checklist_template_items;
+    DROP TABLE IF EXISTS checklist_templates;
     DROP TABLE IF EXISTS bookings;
     DROP TABLE IF EXISTS orders;
     DROP TABLE IF EXISTS technicians;
@@ -200,25 +222,47 @@ function seed() {
   ];
   for (const b of bookings) insertBooking.run(...b);
 
-  const insertChecklist = db.prepare(`INSERT INTO checklist_items (id,order_id,description,completed) VALUES (?,?,?,?)`);
+  const insertChecklist = db.prepare(`INSERT INTO checklist_items (id,order_id,section,description,comment,status,order_index) VALUES (?,?,?,?,?,?,?)`);
   const checklistItems = [
-    [1, 1, 'Sjekk trykkluftstank for korrosjon', 0],
-    [2, 1, 'Verifiser trykknivå', 0],
-    [3, 1, 'Test sikkerhetsventiler', 0],
-    [4, 1, 'Kontroller oljenivå i kompressor', 0],
-    [5, 1, 'Sjekk tilkoblinger og slanger', 0],
-    [6, 2, 'Mål isolasjonsmotstand', 0],
-    [7, 2, 'Sjekk tilkoblinger', 0],
-    [8, 2, 'Rengjør kjøleflater', 1],
-    [9, 2, 'Test nødstopp-funksjonalitet', 0],
-    [10, 4, 'Visuell inspeksjon av anlegg', 0],
-    [11, 4, 'Sjekk temperaturmålinger', 0],
-    [12, 4, 'Test alarmfunksjoner', 0],
-    [13, 6, 'Sikkerhetssjekk av inngangssystem', 0],
-    [14, 6, 'Verifiser alarmfunksjonalitet', 0],
-    [15, 6, 'Kontroller overvåkningssystem', 0]
+    [1, 1, null, 'Sjekk trykkluftstank for korrosjon', null, null, 0],
+    [2, 1, null, 'Verifiser trykknivå', null, null, 1],
+    [3, 1, null, 'Test sikkerhetsventiler', null, null, 2],
+    [4, 1, null, 'Kontroller oljenivå i kompressor', null, null, 3],
+    [5, 1, null, 'Sjekk tilkoblinger og slanger', null, null, 4],
+    [6, 2, null, 'Mål isolasjonsmotstand', null, null, 0],
+    [7, 2, null, 'Sjekk tilkoblinger', null, null, 1],
+    [8, 2, null, 'Rengjør kjøleflater', null, 'godkjent', 2],
+    [9, 2, null, 'Test nødstopp-funksjonalitet', null, null, 3],
+    [10, 4, null, 'Visuell inspeksjon av anlegg', null, null, 0],
+    [11, 4, null, 'Sjekk temperaturmålinger', null, null, 1],
+    [12, 4, null, 'Test alarmfunksjoner', null, null, 2],
+    [13, 6, null, 'Sikkerhetssjekk av inngangssystem', null, null, 0],
+    [14, 6, null, 'Verifiser alarmfunksjonalitet', null, null, 1],
+    [15, 6, null, 'Kontroller overvåkningssystem', null, null, 2]
   ];
   for (const c of checklistItems) insertChecklist.run(...c);
+
+  // ===== SJEKKLISTE-MALER =====
+  const insertTemplate = db.prepare(`INSERT INTO checklist_templates (id,name,description,order_type) VALUES (?,?,?,?)`);
+  insertTemplate.run(1, 'Årskontroll slukkeanlegg', 'Standard årskontroll for CO2/gass-basert slukkeanlegg', 'årskontroll');
+
+  const insertTemplateItem = db.prepare(`INSERT INTO checklist_template_items (template_id,section,description,order_index) VALUES (?,?,?,?)`);
+  const templateItems = [
+    [1, 'Sylinderbankinformasjon', 'Visuell inspeksjon av sylinder'],
+    [1, 'Sylinderbankinformasjon', 'Alle utløsere kontrollert og funksjonstestet'],
+    [1, 'Sylinderbankinformasjon', 'Type utløsere'],
+    [1, 'Sylinderbankinformasjon', 'Antall utløsere'],
+    [1, 'Sylinderbankinformasjon', 'Trykk kontrollert mot spesifikasjon'],
+    [1, 'Rørsystem og dyser', 'Visuell inspeksjon av rørsystem'],
+    [1, 'Rørsystem og dyser', 'Dyser kontrollert for blokkering'],
+    [1, 'Rørsystem og dyser', 'Rørfester og opphengsklammer kontrollert'],
+    [1, 'Styringssystem', 'Detektorer funksjonstestet'],
+    [1, 'Styringssystem', 'Sentral kontrollert og loggført'],
+    [1, 'Styringssystem', 'Manuell utløser testet']
+  ];
+  templateItems.forEach(([templateId, section, description], index) => {
+    insertTemplateItem.run(templateId, section, description, index);
+  });
 
   // ===== DEMO-BRUKERE =====
   const insertUser = db.prepare(`INSERT INTO users (username,password_hash,name,role,technician_id,email) VALUES (?,?,?,?,?,?)`);
@@ -247,12 +291,97 @@ function getBookingsForTech(techId) {
 }
 
 function getChecklistForOrder(orderId) {
-  return db.prepare('SELECT * FROM checklist_items WHERE order_id = ? ORDER BY id').all(orderId);
+  return db.prepare('SELECT * FROM checklist_items WHERE order_id = ? ORDER BY order_index, id').all(orderId);
 }
 
-function createChecklistItem(orderId, description) {
-  const result = db.prepare('INSERT INTO checklist_items (order_id, description, completed) VALUES (?, ?, 0)').run(orderId, description);
+function createChecklistItem(orderId, description, section = null) {
+  const maxIndex = db.prepare('SELECT MAX(order_index) AS m FROM checklist_items WHERE order_id = ?').get(orderId);
+  const nextIndex = (maxIndex?.m ?? -1) + 1;
+  const result = db.prepare('INSERT INTO checklist_items (order_id, section, description, order_index) VALUES (?, ?, ?, ?)')
+    .run(orderId, section, description, nextIndex);
   return result.lastInsertRowid;
+}
+
+function updateChecklistItemDetails(itemId, { status, comment }) {
+  const fields = [];
+  const values = [];
+  if (status !== undefined) { fields.push('status = ?'); values.push(status); }
+  if (comment !== undefined) { fields.push('comment = ?'); values.push(comment); }
+  if (fields.length === 0) return 0;
+  values.push(itemId);
+  const result = db.prepare(`UPDATE checklist_items SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  return result.changes;
+}
+
+// ===== Sjekkliste-maler =====
+
+function listTemplates() {
+  const templates = db.prepare('SELECT * FROM checklist_templates ORDER BY id').all();
+  const countStmt = db.prepare('SELECT COUNT(*) AS n FROM checklist_template_items WHERE template_id = ?');
+  return templates.map(t => ({ ...t, item_count: countStmt.get(t.id).n }));
+}
+
+function getTemplateById(id) {
+  const template = db.prepare('SELECT * FROM checklist_templates WHERE id = ?').get(id);
+  if (!template) return null;
+  const items = db.prepare('SELECT * FROM checklist_template_items WHERE template_id = ? ORDER BY order_index, id').all(id);
+  return { ...template, items };
+}
+
+function createTemplate({ name, description, order_type, items = [] }) {
+  if (!name) throw new Error('Navn er påkrevd');
+  const result = db.prepare('INSERT INTO checklist_templates (name, description, order_type) VALUES (?, ?, ?)')
+    .run(name, description || null, order_type || null);
+  const templateId = result.lastInsertRowid;
+
+  const insertItem = db.prepare('INSERT INTO checklist_template_items (template_id, section, description, order_index) VALUES (?, ?, ?, ?)');
+  items.forEach((item, index) => {
+    if (!item.description) return;
+    insertItem.run(templateId, item.section || null, item.description, index);
+  });
+
+  return templateId;
+}
+
+function updateTemplate(id, { name, description, order_type, items }) {
+  const existing = db.prepare('SELECT * FROM checklist_templates WHERE id = ?').get(id);
+  if (!existing) throw new Error(`Mal ${id} finnes ikke`);
+
+  db.prepare('UPDATE checklist_templates SET name = ?, description = ?, order_type = ? WHERE id = ?')
+    .run(name ?? existing.name, description ?? existing.description, order_type ?? existing.order_type, id);
+
+  if (Array.isArray(items)) {
+    db.prepare('DELETE FROM checklist_template_items WHERE template_id = ?').run(id);
+    const insertItem = db.prepare('INSERT INTO checklist_template_items (template_id, section, description, order_index) VALUES (?, ?, ?, ?)');
+    items.forEach((item, index) => {
+      if (!item.description) return;
+      insertItem.run(id, item.section || null, item.description, index);
+    });
+  }
+
+  return 1;
+}
+
+function deleteTemplate(id) {
+  db.prepare('DELETE FROM checklist_template_items WHERE template_id = ?').run(id);
+  const result = db.prepare('DELETE FROM checklist_templates WHERE id = ?').run(id);
+  return result.changes;
+}
+
+function applyTemplateToOrder(orderId, templateId) {
+  const template = getTemplateById(templateId);
+  if (!template) throw new Error(`Mal ${templateId} finnes ikke`);
+
+  const maxIndex = db.prepare('SELECT MAX(order_index) AS m FROM checklist_items WHERE order_id = ?').get(orderId);
+  let nextIndex = (maxIndex?.m ?? -1) + 1;
+
+  const insertItem = db.prepare('INSERT INTO checklist_items (order_id, section, description, order_index, template_item_id) VALUES (?, ?, ?, ?, ?)');
+  for (const item of template.items) {
+    insertItem.run(orderId, item.section, item.description, nextIndex, item.id);
+    nextIndex += 1;
+  }
+
+  return template.items.length;
 }
 
 function getCalendarItems(role) {
@@ -288,11 +417,6 @@ function getCalendarItems(role) {
       masked: !!(item.requires_clearance && role !== 'manager' && role !== 'admin')
     };
   });
-}
-
-function updateChecklistItem(itemId, completed) {
-  const result = db.prepare('UPDATE checklist_items SET completed = ? WHERE id = ?').run(completed ? 1 : 0, itemId);
-  return result.changes;
 }
 
 // Valider at en booking ikke overlapper med eksisterende bookinger
@@ -644,7 +768,13 @@ module.exports = {
   getBookingsForTech,
   getChecklistForOrder,
   createChecklistItem,
-  updateChecklistItem,
+  updateChecklistItemDetails,
+  listTemplates,
+  getTemplateById,
+  createTemplate,
+  updateTemplate,
+  deleteTemplate,
+  applyTemplateToOrder,
   updateOrderStatus,
   updateOrderFull,
   getCalendarItems,

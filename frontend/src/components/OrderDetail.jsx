@@ -1,5 +1,6 @@
 import React from 'react';
 import ScheduleSuggestions from './ScheduleSuggestions';
+import Checklist from './Checklist';
 import { toast } from 'react-hot-toast';
 
 export default function OrderDetail({
@@ -12,6 +13,21 @@ export default function OrderDetail({
 }) {
   const [suggestions, setSuggestions] = React.useState([]);
   const [loading, setLoading] = React.useState(false);
+  const [aiReview, setAiReview] = React.useState(null);
+  const [reviewLoading, setReviewLoading] = React.useState(false);
+
+  const handleRunReview = async () => {
+    setReviewLoading(true);
+    try {
+      const res = await fetch(`/api/orders/${order.id}/review`);
+      const data = await res.json();
+      setAiReview(data.review);
+    } catch (error) {
+      toast.error('Feil ved AI-review');
+    } finally {
+      setReviewLoading(false);
+    }
+  };
 
   const getStatusColor = (status) => {
     switch (status?.toLowerCase()) {
@@ -248,6 +264,35 @@ export default function OrderDetail({
           </div>
         ) : (
           <p className="text-gray-500">Ingen kommentarer ennå.</p>
+        )}
+      </div>
+
+      {/* Sjekkliste */}
+      <div className="bg-white border rounded-2xl p-6 shadow-sm">
+        <h2 className="text-xl font-semibold text-[#520000] mb-4">Sjekkliste</h2>
+        <Checklist orderId={order.id} orderType={order.type} onReviewRequested={handleRunReview} />
+
+        {reviewLoading && (
+          <div className="mt-4 p-4 bg-gray-50 rounded-xl text-center">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#520000] mx-auto"></div>
+            <p className="text-gray-600 mt-2">Kjører AI-review...</p>
+          </div>
+        )}
+
+        {aiReview && aiReview.length > 0 && (
+          <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-200">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-2xl">🤖</span>
+              <h4 className="font-semibold text-gray-900">AI Review</h4>
+            </div>
+            <div className="space-y-2">
+              {aiReview.map((item, index) => (
+                <div key={index} className="text-sm text-gray-700 p-2 bg-white rounded-lg">
+                  {item.content}
+                </div>
+              ))}
+            </div>
+          </div>
         )}
       </div>
 

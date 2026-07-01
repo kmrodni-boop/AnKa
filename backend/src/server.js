@@ -112,17 +112,65 @@ async function startServer() {
 
     app.post('/api/orders/:id/checklist', (req, res) => {
       const id = parseInt(req.params.id, 10);
-      const { description } = req.body;
+      const { description, section } = req.body;
       if (!description) return res.status(400).json({ error: 'description required' });
-      const newId = db.createChecklistItem(id, description);
+      const newId = db.createChecklistItem(id, description, section || null);
       res.json({ id: newId });
+    });
+
+    app.post('/api/orders/:id/checklist/apply-template', (req, res) => {
+      const id = parseInt(req.params.id, 10);
+      const { templateId } = req.body;
+      if (!templateId) return res.status(400).json({ error: 'templateId required' });
+      try {
+        const count = db.applyTemplateToOrder(id, templateId);
+        res.json({ added: count });
+      } catch (e) {
+        res.status(400).json({ error: e.message });
+      }
     });
 
     app.patch('/api/checklist/:itemId', (req, res) => {
       const itemId = parseInt(req.params.itemId, 10);
-      const { completed } = req.body;
-      if (completed === undefined) return res.status(400).json({ error: 'completed required' });
-      const changes = db.updateChecklistItem(itemId, completed);
+      const { status, comment } = req.body;
+      if (status === undefined && comment === undefined) {
+        return res.status(400).json({ error: 'status or comment required' });
+      }
+      const changes = db.updateChecklistItemDetails(itemId, { status, comment });
+      res.json({ changes });
+    });
+
+    // ===== Sjekkliste-maler =====
+    app.get('/api/checklist-templates', (req, res) => {
+      res.json(db.listTemplates());
+    });
+
+    app.get('/api/checklist-templates/:id', (req, res) => {
+      const template = db.getTemplateById(parseInt(req.params.id, 10));
+      if (!template) return res.status(404).json({ error: 'Mal finnes ikke' });
+      res.json(template);
+    });
+
+    app.post('/api/checklist-templates', requireRole('admin', 'manager'), (req, res) => {
+      try {
+        const id = db.createTemplate(req.body);
+        res.json({ id });
+      } catch (e) {
+        res.status(400).json({ error: e.message });
+      }
+    });
+
+    app.put('/api/checklist-templates/:id', requireRole('admin', 'manager'), (req, res) => {
+      try {
+        const changes = db.updateTemplate(parseInt(req.params.id, 10), req.body);
+        res.json({ changes });
+      } catch (e) {
+        res.status(400).json({ error: e.message });
+      }
+    });
+
+    app.delete('/api/checklist-templates/:id', requireRole('admin', 'manager'), (req, res) => {
+      const changes = db.deleteTemplate(parseInt(req.params.id, 10));
       res.json({ changes });
     });
 
