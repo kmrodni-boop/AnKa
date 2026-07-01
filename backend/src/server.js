@@ -148,7 +148,7 @@ async function startServer() {
     const frontendDist = path.join(__dirname, '..', '..', 'frontend', 'dist');
     app.use(express.static(frontendDist));
 
-    const port = process.env.PORT || 4001;
+    const port = process.env.PORT || 5000;
     app.listen(port, () => {
       console.log(`Backend listening on http://localhost:${port}`);
     });
