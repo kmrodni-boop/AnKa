@@ -1,10 +1,27 @@
 import React from 'react';
 import { toast } from 'react-hot-toast';
 
-export default function CustomerSearchTab({ customers, onCustomerSelect, role }) {
+export default function CustomerSearchTab({ customers, onCustomerSelect, role, onCustomersSynced }) {
   const [searchTerm, setSearchTerm] = React.useState('');
   const [selectedCustomer, setSelectedCustomer] = React.useState(null);
   const [sortConfig, setSortConfig] = React.useState({ key: 'name', direction: 'asc' });
+  const [syncing, setSyncing] = React.useState(false);
+  const canSync = role === 'admin' || role === 'manager';
+
+  const handleSyncCustomers = async () => {
+    setSyncing(true);
+    try {
+      const res = await fetch('/api/customers/sync', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Kunne ikke synke kunder');
+      toast.success(`Synket: ${data.created} nye, ${data.updated} oppdatert`);
+      if (onCustomersSynced) onCustomersSynced();
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const filteredCustomers = customers.filter(customer => {
     if (!searchTerm) return true;
@@ -69,10 +86,21 @@ export default function CustomerSearchTab({ customers, onCustomerSelect, role })
           >
             Nullstill
           </button>
+          {canSync && (
+            <button
+              onClick={handleSyncCustomers}
+              disabled={syncing}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white rounded-lg text-sm transition-colors mt-6 whitespace-nowrap"
+              title="Hent nyeste kundedata fra fakturasystemet"
+            >
+              {syncing ? 'Synker...' : '🔄 Synk kunder'}
+            </button>
+          )}
         </div>
 
         <div className="mt-4 text-sm text-gray-500">
           Viser {filteredCustomers.length} av {customers.length} kunder
+          {canSync && <span className="text-gray-400"> · Kundedata eies av fakturasystemet</span>}
         </div>
       </div>
 

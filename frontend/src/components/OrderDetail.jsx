@@ -15,6 +15,22 @@ export default function OrderDetail({
   const [loading, setLoading] = React.useState(false);
   const [aiReview, setAiReview] = React.useState(null);
   const [reviewLoading, setReviewLoading] = React.useState(false);
+  const [sendingToInvoice, setSendingToInvoice] = React.useState(false);
+
+  const handleSendToInvoice = async () => {
+    setSendingToInvoice(true);
+    try {
+      const res = await fetch(`/api/orders/${order.id}/send-to-invoice`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Kunne ikke sende til fakturasystemet');
+      toast.success('Sendt til fakturasystem');
+      if (onOrderAction) onOrderAction();
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setSendingToInvoice(false);
+    }
+  };
 
   const handleRunReview = async () => {
     setReviewLoading(true);
@@ -170,6 +186,21 @@ export default function OrderDetail({
             >
               Marker som ferdig
             </button>
+          )}
+          {order.status === 'done' && (
+            order.invoiced_at ? (
+              <span className="px-4 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium">
+                🧾 Sendt til fakturasystem {new Date(order.invoiced_at).toLocaleDateString('nb-NO')}
+              </span>
+            ) : (
+              <button
+                onClick={handleSendToInvoice}
+                disabled={sendingToInvoice}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                {sendingToInvoice ? 'Sender...' : '🧾 Send til fakturasystem'}
+              </button>
+            )
           )}
         </div>
       </div>

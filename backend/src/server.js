@@ -90,6 +90,56 @@ async function startServer() {
       }
     });
 
+    // ===== Fakturasystem-integrasjon =====
+    // Kundedata eies av det eksterne fakturasystemet - AnKa henter/synker inn
+    // en lokal kopi herfra i stedet for å administrere kunder selv.
+    const INVOICE_APP_URL = process.env.INVOICE_APP_URL || 'http://localhost:5010';
+
+    app.post('/api/customers/sync', requireRole('admin', 'manager'), async (req, res) => {
+      try {
+        const response = await fetch(`${INVOICE_APP_URL}/api/customers`);
+        if (!response.ok) throw new Error(`Fakturasystemet svarte ${response.status}`);
+        const externalCustomers = await response.json();
+        const result = db.syncCustomersFromExternal(externalCustomers);
+        res.json(result);
+      } catch (e) {
+        res.status(502).json({ error: `Kunne ikke nå fakturasystemet: ${e.message}` });
+      }
+    });
+
+    app.post('/api/orders/:id/send-to-invoice', async (req, res) => {
+      const id = parseInt(req.params.id, 10);
+      const order = db.getOrderById(id);
+      if (!order) return res.status(404).json({ error: 'Ordre finnes ikke' });
+      if (order.status !== 'done') return res.status(400).json({ error: 'Kun fullførte ordre kan sendes til fakturasystemet' });
+
+      const customer = db.getCustomerById(order.customer_id);
+      const technician = order.assigned_tech_id ? db.getTechnicianById(order.assigned_tech_id) : null;
+
+      try {
+        const response = await fetch(`${INVOICE_APP_URL}/api/received-orders`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            anka_order_id: order.id,
+            customer_id: customer?.external_id || null,
+            customer_name: customer?.name || null,
+            customer_address: customer?.address || null,
+            order_type: order.type,
+            estimated_hours: order.estimated_hours,
+            technician_name: technician?.name || null,
+            notes: order.notes,
+            completed_at: order.scheduled_end || new Date().toISOString()
+          })
+        });
+        if (!response.ok) throw new Error(`Fakturasystemet svarte ${response.status}`);
+        db.markOrderInvoiced(id);
+        res.json({ success: true });
+      } catch (e) {
+        res.status(502).json({ error: `Kunne ikke sende til fakturasystemet: ${e.message}` });
+      }
+    });
+
     app.get('/api/technicians', (req, res) => {
       res.json(db.getTechnicians());
     });

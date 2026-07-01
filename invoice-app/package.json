@@ -1,0 +1,15 @@
+{
+  "name": "invoice-mock",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Bevisst gammeldags fiktivt fakturasystem - demonstrerer at AnKa kan koble til et eksternt system via API, i stedet for å bygge fakturering selv.",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.11.1",
+    "cors": "^2.8.5",
+    "express": "^4.18.2"
+  }
+}

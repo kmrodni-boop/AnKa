@@ -107,6 +107,16 @@ export default function App() {
     }
   };
 
+  const refreshCustomers = async () => {
+    try {
+      const res = await fetch('/api/customers');
+      const data = await res.json();
+      setCustomers(data);
+    } catch (error) {
+      toast.error('Feil ved oppdatering av kundeliste');
+    }
+  };
+
   const handleResetDemo = async () => {
     if (window.confirm('Er du sikker på at du vil nullstille demo-data?')) {
       try {
@@ -653,6 +663,7 @@ export default function App() {
                   customers={customers}
                   onCustomerSelect={handleCustomerSelect}
                   role={role}
+                  onCustomersSynced={refreshCustomers}
                 />
               )}
 

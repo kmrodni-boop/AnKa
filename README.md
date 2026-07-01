@@ -20,6 +20,13 @@ npm install
 npm run dev
 ```
 
+### Fakturasystem (valgfritt, men kreves for "Send til fakturasystem")
+```bash
+cd invoice-app
+npm install
+npm start
+```
+
 Åpne [http://localhost:3000](http://localhost:3000) (eller porten Vite bruker).
 
 ## Innlogging
@@ -46,14 +53,17 @@ Alle teknikere i seed-dataen får en tilsvarende konto (`fornavn.etternavn` / `t
 7. Fullfør ordren.
 8. Logg inn som `admin` og bruk **"👁 Forhåndsvis"** i Brukere-fanen for å se en teknikers mobilvisning uten å logge ut.
 9. Sammenlign kalenderen som `koordinator` vs. `admin`/`leder` for å se sikkerhetsmaskeringen ("🔒 Super secret mission") — dette styres nå av den innloggede brukerens faktiske rolle, ikke en fri rollevelger.
+10. Åpne en fullført ordre og trykk **"🧾 Send til fakturasystem"** — dette demonstrerer at AnKa kan sende ferdig ordre til et eksternt system via API (se `invoice-app/`), i stedet for å bygge fakturering selv.
+11. Gå til `http://localhost:5010/mottatt` i fakturasystemet og lag en faktura fra den mottatte ordren.
 
 ## Prosjektstruktur
 
 ```
 nortronik-demo/
-├── backend/          # Express + SQLite + planleggingsalgoritme
-├── frontend/         # Vite + React + Tailwind
-├── data/             # Demo database
+├── backend/          # Express + SQLite + planleggingsalgoritme (AnKa)
+├── frontend/         # Vite + React + Tailwind (AnKa)
+├── invoice-app/       # Frittstående, bevisst gammeldags fakturasystem - demonstrerer API-integrasjon
+├── data/             # Demo-databaser (AnKa + fakturasystem)
 └── docs/             # Demo-script + planer
 ```
 
@@ -61,8 +71,9 @@ nortronik-demo/
 
 - **Backend**: Node.js + Express + better-sqlite3 + JWT-autentisering
 - **Frontend**: React + Vite + Tailwind
+- **Fakturasystem**: Egen Express-app med server-rendret HTML (ingen React) - eies av kundedata som AnKa synker inn, mottar fullførte ordre fra AnKa via API
 - **AI (valgfritt)**: Ollama (lokal) – faller tilbake til en enkel heuristikk hvis `OLLAMA_URL` ikke er satt
-- **Database**: SQLite (fil under `data/`, ikke committet)
+- **Database**: SQLite (filer under `data/`, ikke committet)
 
 ## Neste steg / Utvikling
 

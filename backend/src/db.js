@@ -19,6 +19,7 @@ function createSchema() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS customers (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      external_id INTEGER,
       name TEXT,
       address TEXT,
       lat REAL,
@@ -51,7 +52,8 @@ function createSchema() {
       assigned_tech_id INTEGER,
       scheduled_start TEXT,
       scheduled_end TEXT,
-      notes TEXT
+      notes TEXT,
+      invoiced_at TEXT
     );
 
     CREATE TABLE IF NOT EXISTS bookings (
@@ -140,7 +142,10 @@ function seed() {
   dropSchema();
   createSchema();
 
-  const insertCustomer = db.prepare(`INSERT INTO customers (id,name,address,lat,lng,postal_code,region,requires_clearance) VALUES (?,?,?,?,?,?,?,?)`);
+  // external_id = samme id som i fakturasystemets kundeliste (invoice-app),
+  // slik at "Send til fakturasystem" fungerer på eksisterende demo-ordre uten
+  // at man må kjøre en kunde-synk først.
+  const insertCustomer = db.prepare(`INSERT INTO customers (id,external_id,name,address,lat,lng,postal_code,region,requires_clearance) VALUES (?,?,?,?,?,?,?,?,?)`);
   const customers = [
     [1, 'Bergen Energi', 'Åsane, Bergen', 60.435, 5.348, '5115', 'Vestland', 0],
     [2, 'Lyse Energi', 'Fana, Bergen', 60.350, 5.300, '5221', 'Vestland', 0],
@@ -154,7 +159,10 @@ function seed() {
     [10, 'Finnmark Kraft', 'Hammerfest', 70.663, 23.678, '9600', 'Finnmark', 0],
     [11, 'Troms Kraft', 'Harstad', 68.798, 16.547, '9406', 'Troms og Finnmark', 0]
   ];
-  for (const c of customers) insertCustomer.run(...c);
+  for (const c of customers) {
+    const [id, ...rest] = c;
+    insertCustomer.run(id, id, ...rest);
+  }
 
   const insertTech = db.prepare(`INSERT INTO technicians (id,name,base_lat,base_lng,skills,clearance_level) VALUES (?,?,?,?,?,?)`);
   const technicians = [
@@ -753,6 +761,43 @@ function deleteUser(id) {
   return result.changes;
 }
 
+// ===== Fakturasystem-integrasjon =====
+// Kundedata eies av fakturasystemet (invoice-app); AnKa henter/synker og
+// lagrer en lokal kopi. Felter som er AnKa-spesifikke (geokoordinater for
+// planlegging, sikkerhetsklarering) røres ikke av synken.
+function syncCustomersFromExternal(externalCustomers) {
+  let created = 0;
+  let updated = 0;
+  const findByExternalId = db.prepare('SELECT id FROM customers WHERE external_id = ?');
+  const insert = db.prepare(`
+    INSERT INTO customers (external_id, name, address, postal_code, region, contact_person, phone, email, requires_clearance)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+  `);
+  const update = db.prepare(`
+    UPDATE customers SET name = ?, address = ?, postal_code = ?, region = ?, contact_person = ?, phone = ?, email = ?
+    WHERE external_id = ?
+  `);
+
+  for (const ext of externalCustomers) {
+    const existing = findByExternalId.get(ext.id);
+    const fields = [ext.name, ext.address, ext.postal_code, ext.region, ext.contact_person, ext.phone, ext.email];
+    if (existing) {
+      update.run(...fields, ext.id);
+      updated += 1;
+    } else {
+      insert.run(ext.id, ...fields);
+      created += 1;
+    }
+  }
+
+  return { created, updated };
+}
+
+function markOrderInvoiced(orderId) {
+  const result = db.prepare('UPDATE orders SET invoiced_at = ? WHERE id = ?').run(new Date().toISOString(), orderId);
+  return result.changes;
+}
+
 module.exports = {
   db: () => db,
   initDb,
@@ -763,6 +808,8 @@ module.exports = {
       .run(name, address, lat || null, lng || null, postal_code || null, region || null, requires_clearance ? 1 : 0);
     return result.lastInsertRowid;
   },
+  syncCustomersFromExternal,
+  markOrderInvoiced,
   getTechnicians: () => db.prepare('SELECT * FROM technicians').all(),
   getTechnicianById: (id) => db.prepare('SELECT * FROM technicians WHERE id = ?').get(id) || null,
   getBookingsForTech,
