@@ -9,13 +9,24 @@ const STATUS_OPTIONS = [
 
 const UNGROUPED = 'Sjekkpunkter';
 
-export default function Checklist({ orderId, orderType, onReviewRequested }) {
+export default function Checklist({ orderId, orderType, onReviewRequested, compact = false }) {
   const [items, setItems] = React.useState([]);
   const [newItem, setNewItem] = React.useState('');
   const [loading, setLoading] = React.useState(true);
   const [templates, setTemplates] = React.useState([]);
   const [selectedTemplateId, setSelectedTemplateId] = React.useState('');
   const [applyingTemplate, setApplyingTemplate] = React.useState(false);
+  // I kompakt (mobil) visning er kommentarfeltet sjelden i bruk - hold det
+  // skjult med mindre punktet er "Ikke godkjent", allerede har en kommentar,
+  // eller teknikeren selv har åpnet det manuelt.
+  const [expandedComments, setExpandedComments] = React.useState(() => new Set());
+
+  const showCommentFor = (item) =>
+    !compact || item.status === 'ikke_godkjent' || !!item.comment || expandedComments.has(item.id);
+
+  const expandComment = (itemId) => {
+    setExpandedComments(prev => new Set(prev).add(itemId));
+  };
 
   const loadChecklist = React.useCallback(async () => {
     try {
@@ -214,14 +225,24 @@ export default function Checklist({ orderId, orderType, onReviewRequested }) {
                 {sectionItems.map(item => (
                   <div key={item.id} className="bg-white border rounded-xl p-3">
                     <div className="text-sm font-medium text-gray-900 mb-2">{item.description}</div>
-                    <textarea
-                      value={item.comment || ''}
-                      onChange={(e) => handleCommentChange(item.id, e.target.value)}
-                      onBlur={(e) => handleCommentBlur(item.id, e.target.value)}
-                      placeholder="(Skriv inn tekst her)"
-                      rows={1}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-2 resize-none focus:outline-none focus:ring-2 focus:ring-[#520000]"
-                    />
+                    {showCommentFor(item) ? (
+                      <textarea
+                        value={item.comment || ''}
+                        onChange={(e) => handleCommentChange(item.id, e.target.value)}
+                        onBlur={(e) => handleCommentBlur(item.id, e.target.value)}
+                        placeholder="(Skriv inn tekst her)"
+                        rows={1}
+                        autoFocus={expandedComments.has(item.id)}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-2 resize-none focus:outline-none focus:ring-2 focus:ring-[#520000]"
+                      />
+                    ) : (
+                      <button
+                        onClick={() => expandComment(item.id)}
+                        className="text-xs text-gray-400 hover:text-[#520000] mb-2"
+                      >
+                        + Legg til kommentar
+                      </button>
+                    )}
                     <div className="grid grid-cols-3 gap-2">
                       {STATUS_OPTIONS.map(opt => (
                         <button

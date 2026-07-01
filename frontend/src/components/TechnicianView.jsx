@@ -289,6 +289,7 @@ export default function TechnicianView({ tech, customers = [], onClose, onLogout
             <Checklist
               orderId={selectedOrder.id}
               orderType={selectedOrder.type}
+              compact
               onReviewRequested={async () => {
                 setReviewLoading(true);
                 try {
