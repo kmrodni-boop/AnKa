@@ -1,4 +1,5 @@
-const OLLAMA_URL = process.env.OLLAMA_URL || 'http://127.0.0.1:11434/v1/models/llama2/outputs';
+const OLLAMA_URL = process.env.OLLAMA_URL || 'http://127.0.0.1:11434/api/generate';
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3';
 
 function simpleHeuristicReview(order, checklist) {
   const openItems = checklist.filter(item => !item.completed);
@@ -35,18 +36,18 @@ async function reviewChecklist(order, checklist) {
     const response = await fetch(OLLAMA_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ input: prompt })
+      body: JSON.stringify({ model: OLLAMA_MODEL, prompt, stream: false })
     });
+    if (!response.ok) {
+      return simpleHeuristicReview(order, checklist);
+    }
     const body = await response.json();
-    if (body.output && Array.isArray(body.output)) {
-      return body.output.map(item => ({ role: 'assistant', content: item.content || item }));
+    if (body.response) {
+      return [{ role: 'assistant', content: String(body.response).trim() }];
     }
-    if (body.result) {
-      return [{ role: 'assistant', content: String(body.result) }];
-    }
-    return [{ role: 'assistant', content: 'AI review responded with unexpected format.' }];
+    return simpleHeuristicReview(order, checklist);
   } catch (error) {
-    return [{ role: 'assistant', content: `AI review failed: ${error.message}.` }];
+    return simpleHeuristicReview(order, checklist);
   }
 }
 

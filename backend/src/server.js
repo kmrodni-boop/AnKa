@@ -2,18 +2,73 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const db = require('./db');
+const { signToken, verifyPassword, requireAuth, requireRole } = require('./auth');
 
 // Initialize database first
 async function startServer() {
   try {
     await db.initDb();
     console.log('Database initialized successfully');
-    
+
     const app = express();
     app.use(cors());
     app.use(express.json());
 
     app.get('/api/health', (req, res) => res.json({ ok: true }));
+
+    // ===== Auth (public) =====
+    app.post('/api/auth/login', (req, res) => {
+      const { username, password } = req.body || {};
+      if (!username || !password) return res.status(400).json({ error: 'Brukernavn og passord kreves' });
+
+      const user = db.getUserByUsername(username);
+      if (!user || !verifyPassword(password, user.password_hash)) {
+        return res.status(401).json({ error: 'Feil brukernavn eller passord' });
+      }
+
+      const token = signToken(user);
+      res.json({
+        token,
+        user: { id: user.id, username: user.username, name: user.name, role: user.role, technician_id: user.technician_id }
+      });
+    });
+
+    // Everything below requires a valid session
+    app.use('/api', requireAuth);
+
+    app.get('/api/auth/me', (req, res) => {
+      const user = db.getUserById(req.user.id);
+      if (!user) return res.status(404).json({ error: 'Bruker finnes ikke' });
+      res.json({ user });
+    });
+
+    // ===== Brukeradministrasjon (admin) =====
+    app.get('/api/users', requireRole('admin', 'manager'), (req, res) => {
+      res.json(db.listUsers());
+    });
+
+    app.post('/api/users', requireRole('admin'), (req, res) => {
+      try {
+        const id = db.createUser(req.body);
+        res.json({ id });
+      } catch (e) {
+        res.status(400).json({ error: e.message });
+      }
+    });
+
+    app.patch('/api/users/:id', requireRole('admin'), (req, res) => {
+      try {
+        const changes = db.updateUser(parseInt(req.params.id, 10), req.body);
+        res.json({ changes });
+      } catch (e) {
+        res.status(400).json({ error: e.message });
+      }
+    });
+
+    app.delete('/api/users/:id', requireRole('admin'), (req, res) => {
+      const changes = db.deleteUser(parseInt(req.params.id, 10));
+      res.json({ changes });
+    });
 
     app.get('/api/customers', (req, res) => {
       const customers = db.getCustomers();
@@ -75,9 +130,13 @@ async function startServer() {
       const id = parseInt(req.params.id, 10);
       const { status, assigned_tech_id, scheduled_start, scheduled_end } = req.body;
       if (!status) return res.status(400).json({ error: 'status required' });
-      
-      const changes = db.updateOrderStatus(id, status, assigned_tech_id || null, scheduled_start || null, scheduled_end || null);
-      res.json({ changes });
+
+      try {
+        const changes = db.updateOrderStatus(id, status, assigned_tech_id || null, scheduled_start || null, scheduled_end || null);
+        res.json({ changes });
+      } catch (e) {
+        res.status(400).json({ error: e.message });
+      }
     });
 
     app.patch('/api/orders/:id', (req, res) => {
@@ -101,9 +160,10 @@ async function startServer() {
       res.json({ review });
     });
 
+    // Rollen kommer fra den innloggede brukeren, ikke fra klienten - ellers kan
+    // hvem som helst be om ?role=admin og se maskerte, sensitive kunder.
     app.get('/api/calendar', (req, res) => {
-      const role = req.query.role || 'technician';
-      const items = db.getCalendarItems(role);
+      const items = db.getCalendarItems(req.user.role);
       res.json(items);
     });
 
@@ -135,7 +195,7 @@ async function startServer() {
     });
 
     // Reset demo data
-    app.post('/api/demo/reset', (req, res) => {
+    app.post('/api/demo/reset', requireRole('admin', 'manager'), (req, res) => {
       try {
         const result = db.resetDemoData();
         res.json(result);

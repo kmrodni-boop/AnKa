@@ -2,7 +2,7 @@ import React from 'react';
 import Checklist from './Checklist';
 import { toast } from 'react-hot-toast';
 
-export default function TechnicianView({ tech, onClose, role }) {
+export default function TechnicianView({ tech, customers = [], onClose, onLogout, mode = 'preview' }) {
   const [orders, setOrders] = React.useState([]);
   const [selectedOrder, setSelectedOrder] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
@@ -97,18 +97,8 @@ export default function TechnicianView({ tech, onClose, role }) {
   };
 
   const getCustomerName = (customerId) => {
-    // This would ideally come from context or props
-    const customers = {
-      1: 'Bergen Energi',
-      2: 'Lyse Energi',
-      3: 'Bergenshalvøens Kommunale Kraftselskap',
-      4: 'Førde Industri',
-      5: 'Sogn og Fjordane Energi',
-      6: 'Hemmeligholdt Kunde',
-      7: 'Statens Hemmelige Anlegg',
-      8: 'Finnmark Kraft'
-    };
-    return customers[customerId] || `Kunde #${customerId}`;
+    const customer = customers.find(c => c.id === customerId);
+    return customer ? customer.name : `Kunde #${customerId}`;
   };
 
   if (loading) {
@@ -125,20 +115,32 @@ export default function TechnicianView({ tech, onClose, role }) {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="p-6 border-b bg-gradient-to-r from-[#520000] to-[#3a0000]">
+      <div className="p-4 sm:p-6 border-b bg-gradient-to-r from-[#520000] to-[#3a0000] sticky top-0 z-10">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button
-              onClick={onClose}
-              className="text-white hover:text-red-100 text-2xl"
-            >
-              ×
-            </button>
+            {mode === 'preview' && (
+              <button
+                onClick={onClose}
+                className="text-white hover:text-red-100 text-2xl"
+              >
+                ×
+              </button>
+            )}
             <div>
               <h2 className="text-xl font-bold text-white">{tech.name}</h2>
-              <p className="text-red-100 text-sm">Tekniker-visning</p>
+              <p className="text-red-100 text-sm">
+                {mode === 'preview' ? 'Forhåndsvisning – teknikervisning' : 'Tekniker-visning'}
+              </p>
             </div>
           </div>
+          {mode === 'session' && (
+            <button
+              onClick={onLogout}
+              className="text-sm text-white bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              Logg ut
+            </button>
+          )}
         </div>
       </div>
 
@@ -170,7 +172,7 @@ export default function TechnicianView({ tech, onClose, role }) {
       </div>
 
       {/* Orders list */}
-      <div className="flex-1 overflow-auto p-6 bg-gray-50">
+      <div className="flex-1 overflow-auto p-4 sm:p-6 bg-gray-50">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-[#520000]">Mine ordre</h3>
           <span className="text-sm text-white bg-[#520000] px-3 py-1 rounded-full">
@@ -185,7 +187,7 @@ export default function TechnicianView({ tech, onClose, role }) {
           </div>
         )}
 
-        <div className="grid gap-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
           {orders.map((order) => (
             <div
               key={order.id}

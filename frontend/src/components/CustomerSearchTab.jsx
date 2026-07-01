@@ -94,7 +94,7 @@ export default function CustomerSearchTab({ customers, onCustomerSelect, role })
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
                     <h3 className="text-xl font-semibold text-[#520000]">
-                      {customer.requires_clearance && <span className="mr-1">🔒</span>}
+                      {!!customer.requires_clearance && <span className="mr-1">🔒</span>}
                       {customer.name}
                     </h3>
                   </div>

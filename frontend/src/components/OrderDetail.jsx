@@ -26,7 +26,7 @@ export default function OrderDetail({
 
   const getStatusText = (status) => {
     switch (status?.toLowerCase()) {
-      case 'open': return '\u00c5pen';
+      case 'open': return 'Åpen';
       case 'planlagt': return 'Planlagt';
       case 'in_progress': return 'Under arbeid';
       case 'done': return 'Ferdig';
@@ -135,7 +135,7 @@ export default function OrderDetail({
             onClick={onClose}
             className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-600"
           >
-            \u2190 Tilbake til kunde
+            ← Tilbake til kunde
           </button>
           <div>
             <h1 className="text-3xl font-bold text-[#520000] flex items-center gap-2">

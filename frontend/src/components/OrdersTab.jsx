@@ -62,7 +62,7 @@ export default function OrdersTab({ orders, technicians, customers, onOrderSelec
 
   const getSortIndicator = (key) => {
     if (sortConfig.key !== key) return null;
-    return sortConfig.direction === 'asc' ? '\u2191' : '\u2193';
+    return sortConfig.direction === 'asc' ? '↑' : '↓';
   };
 
   const getStatusColor = (status) => {
@@ -78,7 +78,7 @@ export default function OrdersTab({ orders, technicians, customers, onOrderSelec
 
   const getStatusText = (status) => {
     switch (status?.toLowerCase()) {
-      case 'open': return '\u00c5pen';
+      case 'open': return 'Åpen';
       case 'planlagt': return 'Planlagt';
       case 'in_progress': return 'Under arbeid';
       case 'done': return 'Ferdig';
@@ -162,7 +162,7 @@ export default function OrdersTab({ orders, technicians, customers, onOrderSelec
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">S\u00f8k</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Søk</label>
             <input
               type="text"
               value={filters.search}
@@ -230,7 +230,7 @@ export default function OrdersTab({ orders, technicians, customers, onOrderSelec
             {sortedOrders.length === 0 ? (
               <tr>
                 <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
-                  <div className="text-4xl mb-2">\ud83d\udccb</div>
+                  <div className="text-4xl mb-2">📋</div>
                   <p>Ingen ordrer funnet med gjeldende filter</p>
                 </td>
               </tr>
@@ -266,7 +266,7 @@ export default function OrdersTab({ orders, technicians, customers, onOrderSelec
                       }}
                       className="text-sm text-[#520000] hover:text-[#3a0000] font-medium"
                     >
-                      Vis detaljer \u2192
+                      Vis detaljer →
                     </button>
                   </td>
                 </tr>

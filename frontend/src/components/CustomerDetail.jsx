@@ -25,7 +25,7 @@ export default function CustomerDetail({
 
   const getStatusText = (status) => {
     switch (status?.toLowerCase()) {
-      case 'open': return '\u00c5pen';
+      case 'open': return 'Åpen';
       case 'planlagt': return 'Planlagt';
       case 'in_progress': return 'Under arbeid';
       case 'done': return 'Ferdig';
@@ -63,11 +63,11 @@ export default function CustomerDetail({
           onClick={onBack}
           className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-600"
         >
-          \u2190
+          ←
         </button>
         <div>
           <h1 className="text-3xl font-bold text-[#520000] flex items-center gap-2">
-            {customer.requires_clearance && <span>\ud83d\udd12</span>}
+            {!!customer.requires_clearance && <span>🔒</span>}
             {customer.name}
           </h1>
           <p className="text-gray-600 mt-1">{customer.address}</p>
@@ -119,8 +119,8 @@ export default function CustomerDetail({
 
         {customerOrders.length === 0 && (
           <div className="bg-white border rounded-xl p-6 text-center text-gray-500 shadow-sm">
-            <div className="text-3xl mb-2">\ud83d\udccb</div>
-            <p className="text-sm">Ingen ordre p\u00e5 denne kunden enn\u00e5.</p>
+            <div className="text-3xl mb-2">📋</div>
+            <p className="text-sm">Ingen ordre på denne kunden ennå.</p>
           </div>
         )}
 
@@ -135,10 +135,10 @@ export default function CustomerDetail({
               {/* Venstre side: Ordreinfo */}
               <div className="flex items-center gap-3 flex-1 min-w-0">
                 <div className="text-xl">
-                  {order.type === '\u00e5rskontroll' ? '\ud83d\udcc5' : 
-                   order.type === 'service' ? '\ud83d\udd27' : 
-                   order.type === 'inspection' ? '\ud83d\udd0d' : 
-                   order.type === 'trykktest' ? '\u2699\ufe0f' : '\ud83d\udccb'}
+                  {order.type === 'årskontroll' ? '📅' : 
+                   order.type === 'service' ? '🔧' : 
+                   order.type === 'inspection' ? '🔍' : 
+                   order.type === 'trykktest' ? '⚙️' : '📋'}
                 </div>
                 
                 <div className="min-w-0 flex-1">
@@ -153,7 +153,7 @@ export default function CustomerDetail({
                 </div>
               </div>
 
-              {/* H\u00f8yre side: Status og knapp */}
+              {/* Høyre side: Status og knapp */}
               <div className="flex items-center gap-2 ml-2">
                 <span className={`inline-block px-2 py-0.5 text-xs rounded-full ${getStatusColor(order.status)}`}>
                   {getStatusText(order.status)}
@@ -166,7 +166,7 @@ export default function CustomerDetail({
                   }}
                   className="px-3 py-1.5 bg-[#520000] hover:bg-[#3a0000] text-white rounded-lg text-xs font-medium transition-colors"
                 >
-                  \u2192
+                  →
                 </button>
               </div>
             </div>

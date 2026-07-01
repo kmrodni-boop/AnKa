@@ -10,17 +10,32 @@ import OrdersTab from './components/OrdersTab';
 import CustomerSearchTab from './components/CustomerSearchTab';
 import DeviationsTab from './components/DeviationsTab';
 import UsersTab from './components/UsersTab';
+import Login from './components/Login';
+import { getStoredUser, clearSession } from './session';
 
 export default function App() {
+  const [currentUser, setCurrentUser] = React.useState(() => getStoredUser());
   const [customers, setCustomers] = React.useState([]);
   const [orders, setOrders] = React.useState([]);
   const [technicians, setTechnicians] = React.useState([]);
-  const [role, setRole] = React.useState('coordinator');
   const [loading, setLoading] = React.useState(true);
   const [activeTab, setActiveTab] = React.useState('orders');
   const [recentCustomers, setRecentCustomers] = React.useState([]);
   const [closedOrders, setClosedOrders] = React.useState([]);
   const [activeTech, setActiveTech] = React.useState(null);
+
+  const role = currentUser?.role;
+
+  const handleLogout = React.useCallback(() => {
+    clearSession();
+    setCurrentUser(null);
+    setActiveTech(null);
+  }, []);
+
+  React.useEffect(() => {
+    window.addEventListener('anka:unauthorized', handleLogout);
+    return () => window.removeEventListener('anka:unauthorized', handleLogout);
+  }, [handleLogout]);
   
   // Tab system for customers and their orders
   const [customerTabs, setCustomerTabs] = React.useState([]);
@@ -28,13 +43,15 @@ export default function App() {
 
   // Tab definisjoner for main navigation
   const mainTabs = [
-    { id: 'orders', label: 'Ordrer', icon: '\ud83d\udccb' },
-    { id: 'customers', label: 'Kunder', icon: '\ud83c\udfe2' },
-    { id: 'deviations', label: 'Avvik', icon: '\u26a0\ufe0f' },
-    { id: 'users', label: 'Brukere', icon: '\ud83d\udc65' }
+    { id: 'orders', label: 'Ordrer', icon: '📋' },
+    { id: 'customers', label: 'Kunder', icon: '🏢' },
+    { id: 'deviations', label: 'Avvik', icon: '⚠️' },
+    { id: 'users', label: 'Brukere', icon: '👥' }
   ];
 
   React.useEffect(() => {
+    if (!currentUser) return;
+
     const fetchData = async () => {
       try {
         setLoading(true);
@@ -51,14 +68,14 @@ export default function App() {
         setCustomers(customersData);
         setOrders(ordersData);
         setTechnicians(techniciansData);
-        
+
         // Filtrer ut de 5 siste lukkede ordrene
         const doneOrders = ordersData.filter(o => o.status?.toLowerCase() === 'done');
-        const sortedDoneOrders = doneOrders.sort((a, b) => 
+        const sortedDoneOrders = doneOrders.sort((a, b) =>
           (b.scheduled_end || b.updated_at || new Date(0)) - (a.scheduled_end || a.updated_at || new Date(0))
         );
         setClosedOrders(sortedDoneOrders.slice(0, 5));
-        
+
       } catch (error) {
         toast.error('Feil ved lasting av data');
         console.error('Error fetching data:', error);
@@ -67,7 +84,7 @@ export default function App() {
       }
     };
     fetchData();
-  }, []);
+  }, [currentUser]);
 
   const refreshOrders = async () => {
     try {
@@ -89,7 +106,7 @@ export default function App() {
   };
 
   const handleResetDemo = async () => {
-    if (window.confirm('Er du sikker p\u00e5 at du vil nullstille demo-data?')) {
+    if (window.confirm('Er du sikker på at du vil nullstille demo-data?')) {
       try {
         const res = await fetch('/api/demo/reset', { method: 'POST' });
         const data = await res.json();
@@ -119,18 +136,19 @@ export default function App() {
     }
   };
 
-  // Oppdater nylige kunder n\u00e5r en kunde velges
+  // Kunde-tab-id er deterministisk (basert på kunde-id) slik at en kunde-tab
+  // opprettet og gjenfunnet i samme handling (se handleOpenOrder) alltid treffer.
+  const customerTabId = (customerId) => `customer-${customerId}`;
+
+  // Oppdater nylige kunder når en kunde velges
   const handleCustomerSelect = (customer) => {
-    // Sjekk om kunden allerede har en tab
     const existingTab = customerTabs.find(tab => tab.customerId === customer.id);
-    
+
     if (existingTab) {
-      // Aktiver eksisterende tab
       setActiveCustomerTabId(existingTab.id);
     } else {
-      // Opprett ny tab
       const newTab = {
-        id: `customer-${Date.now()}-${customer.id}`,
+        id: customerTabId(customer.id),
         customerId: customer.id,
         customer,
         orderTabs: [], // Nested tabs for orders
@@ -139,8 +157,39 @@ export default function App() {
       setCustomerTabs(prev => [...prev, newTab]);
       setActiveCustomerTabId(newTab.id);
     }
-    
+
     // Oppdater nylige kunder (maks 5, unike)
+    setRecentCustomers(prev => {
+      const filtered = prev.filter(c => c.id !== customer.id);
+      return [customer, ...filtered].slice(0, 5);
+    });
+  };
+
+  // Åpne en ordre direkte i riktig kunde-tab, selv om kunde-taben ikke
+  // finnes fra før (f.eks. fra ordrelisten). Kombinerer kunde- og
+  // ordre-tab-opprettelse i én oppdatering slik at de ikke kan komme ut av synk.
+  const handleOpenOrder = (order) => {
+    const customer = customers.find(c => c.id === order.customer_id);
+    if (!customer) return;
+
+    const tabId = customerTabId(customer.id);
+    setCustomerTabs(prev => {
+      const base = prev.some(t => t.id === tabId)
+        ? prev
+        : [...prev, { id: tabId, customerId: customer.id, customer, orderTabs: [], activeOrderTabId: null }];
+
+      return base.map(tab => {
+        if (tab.id !== tabId) return tab;
+        const existingOrderTab = tab.orderTabs.find(ot => ot.orderId === order.id);
+        if (existingOrderTab) {
+          return { ...tab, activeOrderTabId: existingOrderTab.id };
+        }
+        const newOrderTab = { id: `order-${customer.id}-${order.id}`, orderId: order.id, order };
+        return { ...tab, orderTabs: [...tab.orderTabs, newOrderTab], activeOrderTabId: newOrderTab.id };
+      });
+    });
+    setActiveCustomerTabId(tabId);
+
     setRecentCustomers(prev => {
       const filtered = prev.filter(c => c.id !== customer.id);
       return [customer, ...filtered].slice(0, 5);
@@ -163,7 +212,7 @@ export default function App() {
     });
   };
 
-  // \u00c5pne en ordre i en kunde-tab som nested tab
+  // Åpne en ordre i en kunde-tab som nested tab
   const openOrderInCustomerTab = (customerTabId, order) => {
     setCustomerTabs(prev => prev.map(tab => {
       if (tab.id !== customerTabId) return tab;
@@ -242,7 +291,7 @@ export default function App() {
         toast.success(`Ordre #${orderId} markert som ferdig`);
         refreshOrders();
         
-        // Lukk eventuelle \u00e5pne order-tabs for denne orden
+        // Lukk eventuelle åpne order-tabs for denne orden
         setCustomerTabs(prev => prev.map(tab => {
           const updatedOrderTabs = tab.orderTabs.filter(ot => ot.orderId !== orderId);
           let updatedActiveOrderTabId = tab.activeOrderTabId;
@@ -306,6 +355,10 @@ export default function App() {
   // Aktive kunde-tabs (for rendering)
   const activeCustomerTab = customerTabs.find(tab => tab.id === activeCustomerTabId);
 
+  if (!currentUser) {
+    return <Login onLogin={setCurrentUser} />;
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -313,6 +366,28 @@ export default function App() {
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#520000]"></div>
           <p className="text-gray-600">Laster data...</p>
         </div>
+      </div>
+    );
+  }
+
+  // Teknikere får en dedikert, mobil-tilpasset fullskjermsvisning i stedet for
+  // koordinator-skrivebordet - det er ikke laget for smale skjermer.
+  if (role === 'technician') {
+    const myTech = technicians.find(t => t.id === currentUser.technician_id);
+    if (!myTech) {
+      return (
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6 text-center">
+          <div>
+            <p className="text-gray-600">Fant ingen teknikerprofil koblet til denne brukeren.</p>
+            <button onClick={handleLogout} className="mt-4 text-sm text-[#520000] underline">Logg ut</button>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Toaster position="top-center" />
+        <TechnicianView tech={myTech} customers={customers} mode="session" onLogout={handleLogout} />
       </div>
     );
   }
@@ -421,7 +496,7 @@ export default function App() {
                           : 'text-gray-600 hover:bg-gray-100'
                       }`}
                     >
-                      <span>\ud83c\udfe0 {customer.name}</span>
+                      <span>🏠 {customer.name}</span>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -430,7 +505,7 @@ export default function App() {
                         className="text-xs hover:text-white ml-1"
                         title="Lukk"
                       >
-                        \u2715
+                        ✕
                       </button>
                     </button>
                   );
@@ -440,24 +515,30 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-4">
-            {/* Reset demo button */}
-            <button
-              onClick={handleResetDemo}
-              className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-600 transition-colors"
-            >
-              \ud83d\uddd1\ufe0f Nullstill Demo
-            </button>
-            
-            <select 
-              value={role} 
-              onChange={(e) => setRole(e.target.value)}
-              className="text-sm border rounded-lg px-3 py-1.5 bg-white shadow-sm"
-            >
-              <option value="coordinator">Koordinator</option>
-              <option value="technician">Tekniker</option>
-              <option value="manager">Leder</option>
-              <option value="admin">Admin</option>
-            </select>
+            {/* Reset demo button - kun for ledere/admin */}
+            {(role === 'admin' || role === 'manager') && (
+              <button
+                onClick={handleResetDemo}
+                className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-600 transition-colors"
+              >
+                🗑️ Nullstill Demo
+              </button>
+            )}
+
+            <div className="flex items-center gap-2 text-sm">
+              <span className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700">
+                {currentUser.name}
+                <span className="text-gray-400"> · {
+                  { admin: 'Admin', manager: 'Leder', coordinator: 'Koordinator', technician: 'Tekniker' }[role] || role
+                }</span>
+              </span>
+              <button
+                onClick={handleLogout}
+                className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-600 transition-colors"
+              >
+                Logg ut
+              </button>
+            </div>
           </div>
         </div>
 
@@ -482,7 +563,7 @@ export default function App() {
                         : 'text-gray-600 hover:bg-gray-100'
                     }`}
                   >
-                    <span>\ud83c\udfe0 {activeCustomerTab.customer?.name || 'Kunde'}</span>
+                    <span>🏠 {activeCustomerTab.customer?.name || 'Kunde'}</span>
                   </button>
 
                   {/* Order tabs */}
@@ -500,7 +581,7 @@ export default function App() {
                             : 'text-gray-600 hover:bg-gray-100'
                         }`}
                       >
-                        <span>\ud83d\udcc4 Ordre #{order.id}</span>
+                        <span>📄 Ordre #{order.id}</span>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -509,7 +590,7 @@ export default function App() {
                           className="text-xs hover:text-white"
                           title="Lukk"
                         >
-                          \u2715
+                          ✕
                         </button>
                       </button>
                     );
@@ -560,18 +641,7 @@ export default function App() {
                   orders={orders}
                   technicians={technicians}
                   customers={customers}
-                  onOrderSelect={(order) => {
-                    // Finn tilh\u00f8rende kunde og \u00e5pne som tab
-                    const customer = customers.find(c => c.id === order.customer_id);
-                    if (customer) {
-                      handleCustomerSelect(customer);
-                      // \u00c5pne orden som nested tab
-                      const customerTab = customerTabs.find(tab => tab.customerId === customer.id);
-                      if (customerTab) {
-                        openOrderInCustomerTab(customerTab.id, order);
-                      }
-                    }
-                  }}
+                  onOrderSelect={handleOpenOrder}
                   role={role}
                 />
               )}
@@ -597,6 +667,7 @@ export default function App() {
                 <UsersTab
                   technicians={technicians}
                   role={role}
+                  onPreviewTechnician={setActiveTech}
                 />
               )}
             </>
@@ -604,14 +675,15 @@ export default function App() {
         </div>
       </div>
 
-      {/* Technician View Overlay */}
+      {/* Technician View Overlay - forhåndsvisning for admin/leder */}
       {activeTech && (
         <div className="fixed inset-0 bg-black/40 flex justify-end z-50">
           <div className="w-full max-w-md bg-white h-full overflow-auto shadow-2xl">
-            <TechnicianView 
-              tech={activeTech} 
-              onClose={() => setActiveTech(null)} 
-              role={role}
+            <TechnicianView
+              tech={activeTech}
+              customers={customers}
+              mode="preview"
+              onClose={() => setActiveTech(null)}
             />
           </div>
         </div>

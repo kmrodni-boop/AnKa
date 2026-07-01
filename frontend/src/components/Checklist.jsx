@@ -147,7 +147,7 @@ export default function Checklist({ orderId, onReviewRequested }) {
                         : 'border-gray-300 hover:border-[#520000]'
                     }`}
                   >
-                    {item.completed && <span className="text-white text-sm">✓</span>}
+                    {!!item.completed && <span className="text-white text-sm">✓</span>}
                   </button>
                   
                   <span className={`flex-1 text-gray-900 ${item.completed ? 'line-through text-gray-400' : ''}`}>
