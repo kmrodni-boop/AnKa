@@ -19,6 +19,7 @@ export default function App() {
   const [activeTab, setActiveTab] = React.useState('orders');
   const [recentCustomers, setRecentCustomers] = React.useState([]);
   const [closedOrders, setClosedOrders] = React.useState([]);
+  const [activeTech, setActiveTech] = React.useState(null);
   
   // Tab system for customers and their orders
   const [customerTabs, setCustomerTabs] = React.useState([]);
@@ -26,10 +27,10 @@ export default function App() {
 
   // Tab definisjoner for main navigation
   const mainTabs = [
-    { id: 'orders', label: 'Ordrer', icon: '📋' },
-    { id: 'customers', label: 'Kunder', icon: '🏢' },
-    { id: 'deviations', label: 'Avvik', icon: '⚠️' },
-    { id: 'users', label: 'Brukere', icon: '👥' }
+    { id: 'orders', label: 'Ordrer', icon: '\ud83d\udccb' },
+    { id: 'customers', label: 'Kunder', icon: '\ud83c\udfe2' },
+    { id: 'deviations', label: 'Avvik', icon: '\u26a0\ufe0f' },
+    { id: 'users', label: 'Brukere', icon: '\ud83d\udc65' }
   ];
 
   React.useEffect(() => {
@@ -87,7 +88,7 @@ export default function App() {
   };
 
   const handleResetDemo = async () => {
-    if (window.confirm('Er du sikker på at du vil nullstille demo-data?')) {
+    if (window.confirm('Er du sikker p\u00e5 at du vil nullstille demo-data?')) {
       try {
         const res = await fetch('/api/demo/reset', { method: 'POST' });
         const data = await res.json();
@@ -117,7 +118,7 @@ export default function App() {
     }
   };
 
-  // Oppdater nylige kunder når en kunde velges
+  // Oppdater nylige kunder n\u00e5r en kunde velges
   const handleCustomerSelect = (customer) => {
     // Sjekk om kunden allerede har en tab
     const existingTab = customerTabs.find(tab => tab.customerId === customer.id);
@@ -161,7 +162,7 @@ export default function App() {
     });
   };
 
-  // Åpne en ordre i en kunde-tab som nested tab
+  // \u00c5pne en ordre i en kunde-tab som nested tab
   const openOrderInCustomerTab = (customerTabId, order) => {
     setCustomerTabs(prev => prev.map(tab => {
       if (tab.id !== customerTabId) return tab;
@@ -240,7 +241,7 @@ export default function App() {
         toast.success(`Ordre #${orderId} markert som ferdig`);
         refreshOrders();
         
-        // Lukk eventuelle åpne order-tabs for denne orden
+        // Lukk eventuelle \u00e5pne order-tabs for denne orden
         setCustomerTabs(prev => prev.map(tab => {
           const updatedOrderTabs = tab.orderTabs.filter(ot => ot.orderId !== orderId);
           let updatedActiveOrderTabId = tab.activeOrderTabId;
@@ -413,7 +414,7 @@ export default function App() {
                           : 'text-gray-600 hover:bg-gray-100'
                       }`}
                     >
-                      <span>🏠 {customer.name}</span>
+                      <span>\ud83c\udfe0 {customer.name}</span>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -422,7 +423,7 @@ export default function App() {
                         className="text-xs hover:text-white ml-1"
                         title="Lukk"
                       >
-                        ✕
+                        \u2715
                       </button>
                     </button>
                   );
@@ -437,7 +438,7 @@ export default function App() {
               onClick={handleResetDemo}
               className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-600 transition-colors"
             >
-              🗑️ Nullstill Demo
+              \ud83d\uddd1\ufe0f Nullstill Demo
             </button>
             
             <select 
@@ -475,7 +476,7 @@ export default function App() {
                             : 'text-gray-600 hover:bg-gray-100'
                         }`}
                       >
-                        <span>📄 Ordre #{order.id}</span>
+                        <span>\ud83d\udcc4 Ordre #{order.id}</span>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -484,7 +485,7 @@ export default function App() {
                           className="text-xs hover:text-white"
                           title="Lukk"
                         >
-                          ✕
+                          \u2715
                         </button>
                       </button>
                     );
@@ -530,7 +531,7 @@ export default function App() {
                             onClick={() => closeOrderTab(activeCustomerTab.id, activeOrderTab.id)}
                             className="text-gray-400 hover:text-gray-600 text-2xl"
                           >
-                            ×
+                            \u00d7
                           </button>
                         </div>
                         
@@ -628,11 +629,11 @@ export default function App() {
                   technicians={technicians}
                   customers={customers}
                   onOrderSelect={(order) => {
-                    // Finn tilhørende kunde og åpne som tab
+                    // Finn tilh\u00f8rende kunde og \u00e5pne som tab
                     const customer = customers.find(c => c.id === order.customer_id);
                     if (customer) {
                       handleCustomerSelect(customer);
-                      // Åpne orden som nested tab
+                      // \u00c5pne orden som nested tab
                       const customerTab = customerTabs.find(tab => tab.customerId === customer.id);
                       if (customerTab) {
                         openOrderInCustomerTab(customerTab.id, order);
