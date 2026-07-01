@@ -30,7 +30,7 @@ export default function CustomerDetail({ customer, orders, technicians, onBack, 
   const getStatusText = (status) => {
     switch (status?.toLowerCase()) {
       case 'open':
-        return 'Åpen';
+        return '\u00c5pen';
       case 'planlagt':
         return 'Planlagt';
       case 'in_progress':
@@ -119,11 +119,11 @@ export default function CustomerDetail({ customer, orders, technicians, onBack, 
           onClick={onBack}
           className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-600"
         >
-          ←
+          \u2190
         </button>
         <div>
           <h1 className="text-3xl font-bold text-[#520000] flex items-center gap-2">
-            {customer.requires_clearance && <span>🔒</span>}
+            {customer.requires_clearance && <span>\ud83d\udd12</span>}
             {customer.name}
           </h1>
           <p className="text-gray-600 mt-1">{customer.address}</p>
@@ -160,8 +160,8 @@ export default function CustomerDetail({ customer, orders, technicians, onBack, 
 
         {customerOrders.length === 0 && (
           <div className="bg-white border rounded-2xl p-8 text-center text-gray-500 shadow-sm">
-            <div className="text-4xl mb-2">📋</div>
-            <p>Ingen ordre på denne kunden ennå.</p>
+            <div className="text-4xl mb-2">\ud83d\udccb</div>
+            <p>Ingen ordre p\u00e5 denne kunden enn\u00e5.</p>
           </div>
         )}
 
@@ -179,10 +179,10 @@ export default function CustomerDetail({ customer, orders, technicians, onBack, 
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
                       <div className="text-2xl">
-                        {order.type === 'årskontroll' ? '📅' : 
-                         order.type === 'service' ? '🔧' : 
-                         order.type === 'inspection' ? '🔍' : 
-                         order.type === 'trykktest' ? '⚙️' : '📋'}
+                        {order.type === '\u00e5rskontroll' ? '\ud83d\udcc5' : 
+                         order.type === 'service' ? '\ud83d\udd27' : 
+                         order.type === 'inspection' ? '\ud83d\udd0d' : 
+                         order.type === 'trykktest' ? '\2699\ufe0f' : '\ud83d\udccb'}
                       </div>
                       <div>
                         <div className="font-semibold text-xl text-gray-900">{order.type}</div>

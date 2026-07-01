@@ -21,13 +21,14 @@ export default function App() {
   const [loading, setLoading] = React.useState(true);
   const [activeTab, setActiveTab] = React.useState('orders');
   const [recentCustomers, setRecentCustomers] = React.useState([]);
+  const [closedOrders, setClosedOrders] = React.useState([]);
 
   // Tab definisjoner
   const tabs = [
-    { id: 'orders', label: 'Ordrer', icon: '📋' },
-    { id: 'customers', label: 'Kunder', icon: '🏢' },
-    { id: 'deviations', label: 'Avvik', icon: '⚠️' },
-    { id: 'users', label: 'Brukere', icon: '👥' }
+    { id: 'orders', label: 'Ordrer', icon: '\ud83d\udccb' },
+    { id: 'customers', label: 'Kunder', icon: '\ud83c\udfe2' },
+    { id: 'deviations', label: 'Avvik', icon: '\u26a0\ufe0f' },
+    { id: 'users', label: 'Brukere', icon: '\ud83d\udc65' }
   ];
 
   React.useEffect(() => {
@@ -47,6 +48,14 @@ export default function App() {
         setCustomers(customersData);
         setOrders(ordersData);
         setTechnicians(techniciansData);
+        
+        // Filtrer ut de 5 siste lukkede ordrene
+        const doneOrders = ordersData.filter(o => o.status?.toLowerCase() === 'done');
+        const sortedDoneOrders = doneOrders.sort((a, b) => 
+          (b.scheduled_end || b.updated_at || new Date(0)) - (a.scheduled_end || a.updated_at || new Date(0))
+        );
+        setClosedOrders(sortedDoneOrders.slice(0, 5));
+        
       } catch (error) {
         toast.error('Feil ved lasting av data');
         console.error('Error fetching data:', error);
@@ -62,6 +71,14 @@ export default function App() {
       const res = await fetch('/api/orders');
       const data = await res.json();
       setOrders(data);
+      
+      // Oppdater lukkede ordrer
+      const doneOrders = data.filter(o => o.status?.toLowerCase() === 'done');
+      const sortedDoneOrders = doneOrders.sort((a, b) => 
+        (b.scheduled_end || b.updated_at || new Date(0)) - (a.scheduled_end || a.updated_at || new Date(0))
+      );
+      setClosedOrders(sortedDoneOrders.slice(0, 5));
+      
       toast.success('Ordreliste oppdatert');
     } catch (error) {
       toast.error('Feil ved oppdatering av ordre');
@@ -92,6 +109,7 @@ export default function App() {
           setSelectedCustomer(null);
           setSelectedOrder(null);
           setRecentCustomers([]);
+          setClosedOrders([]);
         }
       } catch (error) {
         toast.error('Feil ved nullstilling av data');
@@ -117,6 +135,36 @@ export default function App() {
     setSelectedOrder(null);
   };
 
+  // Lukk en ordre (oppdater status til 'done')
+  const handleCloseOrder = async (orderId) => {
+    try {
+      const res = await fetch(`/api/orders/${orderId}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'done' })
+      });
+      
+      if (res.ok) {
+        toast.success(`Ordre #${orderId} markert som ferdig`);
+        refreshOrders();
+        
+        // Oppdater lukkede ordrer
+        const updatedOrders = await res.json();
+        const doneOrders = orders.map(o => o.id === orderId ? { ...o, status: 'done' } : o);
+        const sortedDoneOrders = doneOrders
+          .filter(o => o.status?.toLowerCase() === 'done')
+          .sort((a, b) => (b.scheduled_end || b.updated_at || new Date(0)) - (a.scheduled_end || a.updated_at || new Date(0)));
+        setClosedOrders(sortedDoneOrders.slice(0, 5));
+        
+      } else {
+        toast.error('Kunne ikke lukke ordre');
+      }
+    } catch (error) {
+      toast.error('Feil ved lukking av ordre');
+      console.error('Error closing order:', error);
+    }
+  };
+
   const getStatusColor = (status) => {
     switch (status?.toLowerCase()) {
       case 'open':
@@ -134,6 +182,17 @@ export default function App() {
     }
   };
 
+  const getCustomerName = (customerId) => {
+    const customer = customers.find(c => c.id === customerId);
+    return customer ? customer.name : `Kunde #${customerId}`;
+  };
+
+  const getTechnicianName = (techId) => {
+    if (!techId) return 'Ikke tildelt';
+    const tech = technicians.find(t => t.id === techId);
+    return tech ? tech.name : `Tekniker #${techId}`;
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -149,7 +208,7 @@ export default function App() {
     <div className="flex h-screen bg-gray-50 font-sans">
       <Toaster position="top-center" />
 
-      {/* Sidebar - Nylige kunder */}
+      {/* Sidebar - Siste lukkede ordrer */}
       <div className="w-72 bg-white border-r flex flex-col">
         <div className="p-6 border-b bg-gradient-to-br from-[#520000] to-[#3a0000]">
           <h1 className="text-2xl font-bold text-white">Nortronik AnKa</h1>
@@ -158,31 +217,38 @@ export default function App() {
 
         <div className="p-4 flex-1 overflow-auto">
           <div className="flex items-center justify-between mb-3">
-            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Nylige kunder</div>
+            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Siste lukkede ordrer</div>
           </div>
           
-          {recentCustomers.length === 0 && (
+          {closedOrders.length === 0 && (
             <div className="px-3 py-2 text-sm text-gray-400 text-center">
-              Ingen nylige kunder
+              Ingen lukkede ordrer
             </div>
           )}
 
           <div className="space-y-1">
-            {recentCustomers.map((customer) => (
+            {closedOrders.map((order) => (
               <div
-                key={customer.id}
-                onClick={() => handleCustomerSelect(customer)}
+                key={order.id}
+                onClick={() => {
+                  const customer = customers.find(c => c.id === order.customer_id);
+                  if (customer) {
+                    setSelectedCustomer(customer);
+                    setActiveTab('customers');
+                  }
+                }}
                 className={`px-4 py-3 rounded-xl cursor-pointer transition-all border-2 ${
-                  selectedCustomer?.id === customer.id 
+                  selectedCustomer?.id === order.customer_id 
                     ? 'bg-[#520000] text-white font-medium border-[#520000]' 
                     : 'hover:bg-gray-100 text-gray-700 border-transparent'
                 }`}
               >
-                <div className="font-medium truncate">{customer.name}</div>
-                <div className="text-xs text-gray-500 truncate">{customer.address}</div>
-                {customer.requires_clearance && (
-                  <div className="text-xs text-orange-600 mt-1 flex items-center gap-1">
-                    <span>🔒</span> Krever klarering
+                <div className="font-medium truncate">Ordre #{order.id}</div>
+                <div className="text-xs text-gray-500 truncate">{getCustomerName(order.customer_id)}</div>
+                <div className="text-xs text-gray-400 truncate">{order.type}</div>
+                {order.scheduled_end && (
+                  <div className="text-xs text-gray-400 mt-1">
+                    Ferdig: {new Date(order.scheduled_end).toLocaleDateString('nb-NO')}
                   </div>
                 )}
               </div>
@@ -219,6 +285,32 @@ export default function App() {
                   {tab.icon} {tab.label}
                 </button>
               ))}
+              
+              {/* Customer tab - vises bare når en kunde er valgt */}
+              {selectedCustomer && (
+                <button
+                  onClick={() => {
+                    setActiveTab('customer-detail');
+                  }}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+                    activeTab === 'customer-detail'
+                      ? 'bg-[#520000] text-white'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <span>🏠 {selectedCustomer.name}</span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedCustomer(null);
+                      setActiveTab('customers');
+                    }}
+                    className="text-xs hover:text-white"
+                  >
+                    ✕
+                  </button>
+                </button>
+              )}
             </div>
           </div>
 
@@ -288,6 +380,21 @@ export default function App() {
             />
           )}
 
+          {/* Customer Detail - Vises i hovedvinduet eller som aktiv tab */}
+          {(activeTab === 'customer-detail' || (selectedCustomer && !selectedOrder)) && selectedCustomer && (
+            <CustomerDetail
+              customer={selectedCustomer}
+              orders={orders.filter(o => o.customer_id === selectedCustomer.id)}
+              technicians={technicians}
+              onBack={() => {
+                setSelectedCustomer(null);
+                setActiveTab('customers');
+              }}
+              onOrderAction={refreshOrders}
+              role={role}
+            />
+          )}
+
           {/* Order Detail Modal */}
           {selectedOrder && (
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -322,13 +429,13 @@ export default function App() {
                     <div>
                       <div className="text-sm text-gray-500 uppercase tracking-wider">Kunde</div>
                       <div className="font-medium">
-                        {customers.find(c => c.id === selectedOrder.customer_id)?.name || 'Ukjent'}
+                        {getCustomerName(selectedOrder.customer_id)}
                       </div>
                     </div>
                     <div>
                       <div className="text-sm text-gray-500 uppercase tracking-wider">Tekniker</div>
                       <div className="font-medium">
-                        {technicians.find(t => t.id === selectedOrder.assigned_tech_id)?.name || 'Ikke tildelt'}
+                        {getTechnicianName(selectedOrder.assigned_tech_id)}
                       </div>
                     </div>
                   </div>
@@ -371,6 +478,14 @@ export default function App() {
                   )}
 
                   <div className="flex gap-2 pt-4">
+                    {selectedOrder.status !== 'done' && (
+                      <button
+                        onClick={() => handleCloseOrder(selectedOrder.id)}
+                        className="flex-1 px-4 py-2 bg-[#520000] hover:bg-[#3a0000] text-white rounded-lg font-medium transition-colors"
+                      >
+                        Marker som ferdig
+                      </button>
+                    )}
                     <button
                       onClick={() => setSelectedOrder(null)}
                       className="flex-1 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors"
@@ -382,75 +497,6 @@ export default function App() {
               </div>
             </div>
           )}
-
-          {/* Customer Detail - Vises i hovedvinduet */}
-          {selectedCustomer && !selectedOrder && (
-            <CustomerDetail
-              customer={selectedCustomer}
-              orders={orders.filter(o => o.customer_id === selectedCustomer.id)}
-              technicians={technicians}
-              onBack={() => setSelectedCustomer(null)}
-              onOrderAction={refreshOrders}
-              role={role}
-            />
-          )}
-        </div>
-      </div>
-
-      {/* Right panel - Technician quick access */}
-      <div className="w-80 border-l bg-white p-5 overflow-auto hidden xl:block">
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-[#520000]">Teknikere</h3>
-            <span className="text-xs bg-[#520000] text-white px-2 py-1 rounded-full">{technicians.length}</span>
-          </div>
-          
-          {technicians.length === 0 && (
-            <div className="text-sm text-gray-400 text-center py-4">Ingen teknikere</div>
-          )}
-          
-          <div className="space-y-2">
-            {technicians.map(t => (
-              <div 
-                key={t.id}
-                onClick={() => setActiveTech(t)}
-                className="p-4 rounded-xl border-2 hover:bg-gray-50 cursor-pointer transition-all border-transparent hover:border-[#520000] group"
-              >
-                <div className="font-medium text-gray-900 group-hover:text-[#520000]">{t.name}</div>
-                <div className="text-xs text-gray-500 mt-1">
-                  Base: {t.base_lat?.toFixed(3)}, {t.base_lng?.toFixed(3)}
-                </div>
-                <div className="text-xs text-gray-400 mt-1">
-                  Kompetanse: {JSON.parse(t.skills || '[]').join(', ')}
-                </div>
-                {t.clearance_level >= 2 && (
-                  <div className="text-xs text-green-600 mt-1 flex items-center gap-1">
-                    <span>✓</span> Clearance Level {t.clearance_level}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-[#520000]">Kalender</h3>
-            <span className="text-xs text-gray-500">
-              {role === 'manager' || role === 'admin' ? 'Full visning' : 'Maskert'}
-            </span>
-          </div>
-          <CalendarView role={role} />
-        </div>
-
-        {/* Demo info */}
-        <div className="mt-auto pt-4 border-t">
-          <div className="bg-[#520000] p-3 rounded-xl">
-            <div className="text-xs font-semibold text-white mb-1">DEMO MODUS</div>
-            <div className="text-xs text-red-100">
-              All data er fiktiv. Bruk "Nullstill Demo" for å starte på nytt.
-            </div>
-          </div>
         </div>
       </div>
 
